@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-Fill Assistant</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="logo-group">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <h1 class="app-title">E-Fill</h1>
+        <p class="app-tagline">Intelligent Government Form Assistant</p>
+      </div>
+    </div>
+    <div class="tab-nav">
+      <button class="tab-btn active" id="tab-review-btn">Review & Fill</button>
+      <button class="tab-btn" id="tab-profile-btn">User Profile</button>
+    </div>
+  </header>
+
+  <!-- Review & Fill View -->
+  <main class="tab-view active" id="view-review">
+    <section class="page-context-card">
+      <div class="context-meta">
+        <span class="badge badge-portal" id="portal-badge">Application Portal</span>
+        <h2 class="page-title" id="page-title">Detecting form...</h2>
+        <p class="page-url" id="page-url">Checking active browser tab</p>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btn-rescan" title="Rescan current page">
+        ↻ Rescan Page
+      </button>
+    </section>
+
+    <section class="summary-bar" id="summary-bar">
+      <div class="summary-pill ready">
+        <span class="count" id="count-ready">0</span>
+        <span class="label">Ready</span>
+      </div>
+      <div class="summary-pill review">
+        <span class="count" id="count-review">0</span>
+        <span class="label">Review</span>
+      </div>
+      <div class="summary-pill unavailable">
+        <span class="count" id="count-unavailable">0</span>
+        <span class="label">Unavailable</span>
+      </div>
+    </section>
+
+    <!-- Field Proposals Section -->
+    <div class="proposals-container" id="proposals-container">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">🔍</div>
+        <h3>No Form Detected Yet</h3>
+        <p>Open a form page or click "Rescan Page" to detect and review fields.</p>
+      </div>
+      <div class="proposals-list" id="proposals-list" style="display: none;"></div>
+    </div>
+
+    <!-- Verification / Result Alert -->
+    <div class="result-alert" id="result-alert" style="display: none;"></div>
+
+    <!-- Footer Action Bar -->
+    <footer class="action-bar">
+      <div class="action-info">
+        <span id="approved-count-text">0 fields selected</span>
+      </div>
+      <button class="btn btn-primary" id="btn-autofill" disabled>
+        ⚡ Autofill Approved Fields
+      </button>
+    </footer>
+  </main>
+
+  <!-- User Profile View -->
+  <main class="tab-view" id="view-profile">
+    <div class="profile-header">
+      <div>
+        <h2>Saved Profile</h2>
+        <p class="subtitle">Local-first encrypted storage for quick form completion</p>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btn-reset-profile">
+        Reset to Sample Data
+      </button>
+    </div>
+
+    <form id="profile-form" class="profile-form">
+      <fieldset class="profile-section">
+        <legend>Personal Details</legend>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="prof-fullName">Full Name</label>
+            <input type="text" id="prof-fullName" required>
+          </div>
+        </div>
+        <div class="form-row two-col">
+          <div class="form-group">
+            <label for="prof-dob">Date of Birth</label>
+            <input type="date" id="prof-dob" required>
+          </div>
+          <div class="form-group">
+            <label for="prof-gender">Gender</label>
+            <select id="prof-gender">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Transgender">Transgender</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="profile-section">
+        <legend>Contact Information</legend>
+        <div class="form-row two-col">
+          <div class="form-group">
+            <label for="prof-mobile">Mobile Number (10 digits)</label>
+            <input type="tel" id="prof-mobile" maxlength="10" required>
+          </div>
+          <div class="form-group">
+            <label for="prof-email">Email Address</label>
+            <input type="email" id="prof-email" required>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="profile-section">
+        <legend>Family Details</legend>
+        <div class="form-row two-col">
+          <div class="form-group">
+            <label for="prof-fatherName">Father's Name</label>
+            <input type="text" id="prof-fatherName">
+          </div>
+          <div class="form-group">
+            <label for="prof-motherName">Mother's Name</label>
+            <input type="text" id="prof-motherName">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="profile-section">
+        <legend>Permanent Address</legend>
+        <div class="form-group">
+          <label for="prof-addressLine">Address (House, Street, Area)</label>
+          <textarea id="prof-addressLine" rows="2"></textarea>
+        </div>
+        <div class="form-row three-col">
+          <div class="form-group">
+            <label for="prof-district">District</label>
+            <input type="text" id="prof-district">
+          </div>
+          <div class="form-group">
+            <label for="prof-state">State / UT</label>
+            <input type="text" id="prof-state">
+          </div>
+          <div class="form-group">
+            <label for="prof-pincode">PIN Code</label>
+            <input type="text" id="prof-pincode" maxlength="6">
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="profile-actions">
+        <button type="submit" class="btn btn-primary" id="btn-save-profile">
+          Save Profile Changes
+        </button>
+        <span class="save-toast" id="save-toast">Saved to local storage!</span>
+      </div>
+    </form>
+  </main>
+
+  <script src="../core/canonical-schema.js"></script>
+  <script src="../core/storage.js"></script>
+  <script src="../core/normalizer.js"></script>
+  <script src="../core/source-selector.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
