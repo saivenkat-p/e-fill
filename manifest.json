@@ -9,6 +9,9 @@
     "scripting",
     "sidePanel"
   ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
     "default_title": "E-Fill Application Assistant"
   },
@@ -24,6 +27,8 @@
       "js": [
         "core/canonical-schema.js",
         "core/normalizer.js",
+        "core/app-profiles.js",
+        "core/page-classifier.js",
         "content/field-reader.js",
         "content/form-detector.js",
         "content/indicator.js",

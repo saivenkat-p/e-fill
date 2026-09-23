@@ -161,8 +161,9 @@
      */
     findPrecedingText(el) {
       let node = el.previousSibling;
+      const textNodeType = (typeof Node !== 'undefined' && Node.TEXT_NODE) ? Node.TEXT_NODE : 3;
       while (node) {
-        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+        if (node.nodeType === textNodeType && node.textContent.trim()) {
           return node.textContent.trim();
         }
         node = node.previousSibling;
@@ -174,9 +175,10 @@
      * Generates a unique CSS selector for this element.
      */
     getElementSelector(el) {
-      if (el.id) return `#${CSS.escape(el.id)}`;
-      if (el.getAttribute('data-efill-id')) return `[data-efill-id="${el.getAttribute('data-efill-id')}"]`;
-      if (el.name) return `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]`;
+      const escape = (str) => (typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(str) : str);
+      if (el.id) return `#${escape(el.id)}`;
+      if (el.getAttribute('data-efill-id')) return `[data-efill-id="${escape(el.getAttribute('data-efill-id'))}"]`;
+      if (el.name) return `${el.tagName.toLowerCase()}[name="${escape(el.name)}"]`;
       return el.tagName.toLowerCase();
     }
   }

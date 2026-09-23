@@ -160,6 +160,73 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Eligibility Banner */
+.eligibility-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.eligibility-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #64748b; /* neutral default */
+}
+
+.eligibility-dot.supported {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+.eligibility-dot.unsupported {
+  background: #64748b;
+}
+
+.eligibility-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.eligibility-label.supported {
+  color: #34d399;
+}
+
+.eligibility-label.unsupported {
+  color: #64748b;
+}
+
+/* Ineligible State Panel */
+.ineligible-state {
+  text-align: center;
+  padding: 30px 16px;
+  color: var(--text-muted);
+}
+
+.ineligible-state h3 {
+  font-size: 14px;
+  color: var(--text-main);
+  margin: 8px 0 6px;
+}
+
+.ineligible-state p {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 4px 0;
+}
+
+.ineligible-reason {
+  font-size: 11px;
+  color: #475569;
+  font-style: italic;
+  margin-top: 8px;
+}
+
 /* Summary Bar */
 .summary-bar {
   display: flex;

@@ -2,13 +2,23 @@
  * E-Fill Side Panel Controller
  * Coordinates form review, live proposal editing, user approval, autofill triggering,
  * and user profile configuration.
+ *
+ * Key eligibility rule:
+ *   The side panel always reflects the scan response from content.js.
+ *   If the page is not eligible, it shows the ineligible state and suppresses field lists.
+ *   It NEVER generates proposals for ineligible pages.
  */
 
 (function () {
   'use strict';
 
-  const storageManager = window.EFillStorage?.storageManager;
-  const sourceSelector = window.EFillSourceSelector?.sourceSelector;
+  function getStorageManager() {
+    return window.EFillStorage?.storageManager;
+  }
+
+  function getSourceSelector() {
+    return window.EFillSourceSelector?.sourceSelector;
+  }
 
   let currentProfile = null;
   let currentProposals = [];
@@ -22,10 +32,15 @@
 
   const pageTitleEl = document.getElementById('page-title');
   const pageUrlEl = document.getElementById('page-url');
+  const eligibilityDot = document.getElementById('eligibility-dot');
+  const eligibilityLabel = document.getElementById('eligibility-label');
   const btnRescan = document.getElementById('btn-rescan');
+  const summaryBar = document.getElementById('summary-bar');
   const countReadyEl = document.getElementById('count-ready');
   const countReviewEl = document.getElementById('count-review');
   const countUnavailableEl = document.getElementById('count-unavailable');
+  const ineligibleStateEl = document.getElementById('ineligible-state');
+  const ineligibleReasonEl = document.getElementById('ineligible-reason');
   const emptyStateEl = document.getElementById('empty-state');
   const proposalsListEl = document.getElementById('proposals-list');
   const approvedCountText = document.getElementById('approved-count-text');
@@ -46,6 +61,19 @@
 
     btnRescan.addEventListener('click', () => scanActiveTab());
     btnAutofill.addEventListener('click', handleAutofill);
+
+    // Keep Side Panel in sync as the user switches tabs or navigates
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.onActivated.addListener(async () => {
+        await scanActiveTab();
+      });
+
+      chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+        if (changeInfo.status === 'complete' && tabId === currentActiveTabId) {
+          await scanActiveTab();
+        }
+      });
+    }
   });
 
   function setupTabNavigation() {
@@ -65,8 +93,9 @@
   }
 
   async function loadProfile() {
-    if (!storageManager) return;
-    currentProfile = await storageManager.getProfile();
+    const sm = getStorageManager();
+    if (!sm) return;
+    currentProfile = await sm.getProfile();
     populateProfileForm(currentProfile);
   }
 
@@ -94,6 +123,8 @@
   }
 
   function setupProfileForm() {
+    const sm = getStorageManager();
+
     profileForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!currentProfile) currentProfile = {};
@@ -117,22 +148,21 @@
       currentProfile.address.state = document.getElementById('prof-state').value.trim();
       currentProfile.address.pincode = document.getElementById('prof-pincode').value.trim();
 
-      await storageManager.saveProfile(currentProfile);
+      if (sm) await sm.saveProfile(currentProfile);
 
       saveToast.style.display = 'inline';
-      setTimeout(() => {
-        saveToast.style.display = 'none';
-      }, 2500);
+      setTimeout(() => { saveToast.style.display = 'none'; }, 2500);
 
-      // Refresh proposals with updated profile data
       await scanActiveTab();
     });
 
     btnResetProfile.addEventListener('click', async () => {
       if (confirm('Reset profile to default sample data?')) {
-        currentProfile = await storageManager.resetToDefaultProfile();
-        populateProfileForm(currentProfile);
-        await scanActiveTab();
+        if (sm) {
+          currentProfile = await sm.resetToDefaultProfile();
+          populateProfileForm(currentProfile);
+          await scanActiveTab();
+        }
       }
     });
   }
@@ -146,9 +176,11 @@
   async function scanActiveTab() {
     resultAlertEl.style.display = 'none';
     const tab = await getActiveTab();
+
     if (!tab || !tab.id) {
       pageTitleEl.textContent = 'No active tab found';
       pageUrlEl.textContent = 'Please select a browser tab';
+      showIneligibleState('No active browser tab');
       return;
     }
 
@@ -156,14 +188,50 @@
     pageTitleEl.textContent = tab.title || 'Untitled Page';
     pageUrlEl.textContent = tab.url || '';
 
+    // Handle browser-internal pages before messaging (can't send messages there)
+    if (tab.url && (
+      tab.url.startsWith('chrome://') ||
+      tab.url.startsWith('edge://') ||
+      tab.url.startsWith('about:') ||
+      tab.url.startsWith('chrome-extension://')
+    )) {
+      showIneligibleState('E-Fill does not operate on browser system pages');
+      return;
+    }
+
     try {
-      chrome.tabs.sendMessage(tab.id, { action: 'SCAN_PAGE' }, (response) => {
+      chrome.tabs.sendMessage(tab.id, { action: 'SCAN_PAGE' }, async (response) => {
         if (chrome.runtime.lastError || !response || !response.data) {
-          // Content script may not be loaded yet
-          emptyStateEl.style.display = 'block';
-          proposalsListEl.style.display = 'none';
-          updateCounts(0, 0, 0);
-          updateActionBar();
+          // Content script not yet loaded — attempt dynamic injection
+          try {
+            if (chrome.scripting) {
+              await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: [
+                  'core/canonical-schema.js',
+                  'core/normalizer.js',
+                  'core/app-profiles.js',
+                  'core/page-classifier.js',
+                  'content/field-reader.js',
+                  'content/form-detector.js',
+                  'content/indicator.js',
+                  'content/autofill.js',
+                  'content/content.js'
+                ]
+              });
+
+              chrome.tabs.sendMessage(tab.id, { action: 'SCAN_PAGE' }, (retryRes) => {
+                if (retryRes && retryRes.data) {
+                  renderScanResults(retryRes.data);
+                } else {
+                  showIneligibleState('Could not communicate with this page');
+                }
+              });
+            }
+          } catch (injectErr) {
+            console.warn('[E-Fill] Injection not permitted:', injectErr);
+            showIneligibleState('E-Fill cannot operate on this page');
+          }
           return;
         }
 
@@ -171,46 +239,105 @@
       });
     } catch (err) {
       console.warn('[E-Fill] Scan error:', err);
+      showIneligibleState('Scan error occurred');
     }
   }
 
+  /**
+   * Primary rendering function.
+   * Checks eligibility from the scan result and branches accordingly.
+   */
   function renderScanResults(scanData) {
-    if (!scanData || !scanData.fields || scanData.fields.length === 0) {
-      emptyStateEl.style.display = 'block';
-      proposalsListEl.style.display = 'none';
-      updateCounts(0, 0, 0);
-      updateActionBar();
+    if (!scanData) {
+      showIneligibleState('No response from page');
       return;
     }
 
+    // --- INELIGIBLE PAGE ---
+    if (!scanData.eligible) {
+      showIneligibleState(scanData.eligibilityReason || 'Page not recognized as a supported application');
+      return;
+    }
+
+    // --- ELIGIBLE PAGE ---
+    const profileName = scanData.profile?.name || 'Supported Application';
+    setEligibleUI(profileName);
+
+    if (!scanData.fields || scanData.fields.length === 0) {
+      showEmptyScan();
+      return;
+    }
+
+    // Show summary bar and proposals
+    summaryBar.style.display = 'flex';
+    ineligibleStateEl.style.display = 'none';
     emptyStateEl.style.display = 'none';
     proposalsListEl.style.display = 'flex';
     proposalsListEl.innerHTML = '';
 
-    // Generate proposals based on current user profile
-    currentProposals = sourceSelector ? sourceSelector.generateProposals(scanData.fields, currentProfile) : [];
+    const selector = getSourceSelector();
+    currentProposals = selector ? selector.generateProposals(scanData.fields, currentProfile) : [];
 
-    let readyCount = 0;
-    let reviewCount = 0;
-    let unavailableCount = 0;
+    let readyCount = 0, reviewCount = 0, unavailableCount = 0;
 
     currentProposals.forEach((proposal, idx) => {
       if (proposal.status === 'READY') readyCount++;
       else if (proposal.status === 'REVIEW_REQUIRED') reviewCount++;
       else unavailableCount++;
 
-      const card = createProposalCard(proposal, idx);
-      proposalsListEl.appendChild(card);
+      proposalsListEl.appendChild(createProposalCard(proposal, idx));
     });
 
     updateCounts(readyCount, reviewCount, unavailableCount);
     updateActionBar();
   }
 
+  /**
+   * Show the ineligible state — clears proposals, hides action bar.
+   */
+  function showIneligibleState(reason) {
+    setIneligibleUI();
+    summaryBar.style.display = 'none';
+    emptyStateEl.style.display = 'none';
+    proposalsListEl.style.display = 'none';
+    proposalsListEl.innerHTML = '';
+
+    ineligibleStateEl.style.display = 'block';
+    if (ineligibleReasonEl) {
+      ineligibleReasonEl.textContent = reason || '';
+    }
+
+    currentProposals = [];
+    updateActionBar();
+  }
+
+  function showEmptyScan() {
+    summaryBar.style.display = 'none';
+    ineligibleStateEl.style.display = 'none';
+    proposalsListEl.style.display = 'none';
+    emptyStateEl.style.display = 'block';
+    currentProposals = [];
+    updateActionBar();
+  }
+
+  function setEligibleUI(appName) {
+    eligibilityDot.className = 'eligibility-dot supported';
+    eligibilityLabel.className = 'eligibility-label supported';
+    eligibilityLabel.textContent = 'Supported application detected';
+    pageTitleEl.textContent = appName;
+  }
+
+  function setIneligibleUI() {
+    eligibilityDot.className = 'eligibility-dot unsupported';
+    eligibilityLabel.className = 'eligibility-label unsupported';
+    eligibilityLabel.textContent = 'No supported application detected';
+  }
+
   function createProposalCard(proposal, index) {
     const card = document.createElement('div');
-    const statusClass = proposal.status.toLowerCase().replace('_', '-');
+    const statusClass = proposal.status.toLowerCase().replace(/_/g, '-');
     card.className = `proposal-card ${statusClass}`;
+    card.setAttribute('data-card-field-id', proposal.fieldId);
 
     let badgeText = 'Ready';
     let badgeClass = 'badge-ready';
@@ -222,58 +349,57 @@
       badgeClass = 'badge-unavailable';
     }
 
+    const isDisabled = proposal.status === 'UNAVAILABLE' || proposal.status === 'UNIDENTIFIED';
+
     card.innerHTML = `
       <div class="card-top">
         <label class="field-checkbox-label">
-          <input type="checkbox" class="prop-checkbox" ${proposal.approved ? 'checked' : ''} ${proposal.status === 'UNAVAILABLE' || proposal.status === 'UNIDENTIFIED' ? 'disabled' : ''}>
+          <input type="checkbox" class="prop-checkbox" ${proposal.approved ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
           <span>${escapeHtml(proposal.label)}</span>
         </label>
-        <span class="status-badge ${badgeClass}">${badgeText}</span>
+        <span class="status-badge ${badgeClass}" id="badge-${index}">${badgeText}</span>
       </div>
-
       <div class="field-value-box">
-        <input type="text" class="value-input" value="${escapeHtml(proposal.proposedValue || '')}" placeholder="${proposal.status === 'UNAVAILABLE' ? 'No value in profile' : 'Value'}" ${proposal.status === 'UNAVAILABLE' || proposal.status === 'UNIDENTIFIED' ? 'disabled' : ''}>
+        <input type="text" class="value-input" value="${escapeHtml(proposal.proposedValue || '')}" placeholder="${isDisabled ? 'No value in profile' : 'Value'}" ${isDisabled ? 'disabled' : ''}>
       </div>
-
       <div class="card-bottom">
         <span class="source-tag">📂 ${escapeHtml(proposal.source)}</span>
         <span class="reason-tooltip" title="${escapeHtml(proposal.reason)}">${escapeHtml(proposal.reason)}</span>
       </div>
     `;
 
-    // Checkbox toggle
     const checkbox = card.querySelector('.prop-checkbox');
     checkbox.addEventListener('change', (e) => {
       proposal.approved = e.target.checked;
       updateActionBar();
     });
 
-    // In-line value edit
     const input = card.querySelector('.value-input');
     input.addEventListener('input', (e) => {
       proposal.proposedValue = e.target.value;
       proposal.userEdited = true;
-      if (!proposal.approved && proposal.status !== 'UNAVAILABLE') {
+      if (!proposal.approved && !isDisabled) {
         proposal.approved = true;
         checkbox.checked = true;
         updateActionBar();
       }
     });
 
-    // Hover to highlight on the web page
     card.addEventListener('mouseenter', () => {
-      if (currentActiveTabId) {
+      if (currentActiveTabId && typeof chrome !== 'undefined' && chrome.tabs) {
         chrome.tabs.sendMessage(currentActiveTabId, {
           action: 'HIGHLIGHT_FIELD',
           fieldId: proposal.fieldId,
           selector: proposal.selector
-        });
+        }, () => { if (chrome.runtime.lastError) {} });
       }
     });
 
     card.addEventListener('mouseleave', () => {
-      if (currentActiveTabId) {
-        chrome.tabs.sendMessage(currentActiveTabId, { action: 'CLEAR_HIGHLIGHT' });
+      if (currentActiveTabId && typeof chrome !== 'undefined' && chrome.tabs) {
+        chrome.tabs.sendMessage(currentActiveTabId, { action: 'CLEAR_HIGHLIGHT' }, () => {
+          if (chrome.runtime.lastError) {}
+        });
       }
     });
 
@@ -316,6 +442,19 @@
         const report = res.report;
         if (report.success) {
           showResultAlert(`✅ Successfully filled ${report.filledCount} of ${report.totalAttempted} approved fields.`, true);
+
+          (report.results || []).forEach(r => {
+            if (r.success) {
+              const card = proposalsListEl.querySelector(`[data-card-field-id="${CSS.escape(r.fieldId)}"]`);
+              if (card) {
+                const badge = card.querySelector('.status-badge');
+                if (badge) {
+                  badge.textContent = '✓ Filled';
+                  badge.className = 'status-badge badge-ready';
+                }
+              }
+            }
+          });
         } else {
           showResultAlert(`⚠️ Fill completed with errors: ${report.failedCount} fields failed.`, false);
         }

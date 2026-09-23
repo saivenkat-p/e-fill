@@ -214,20 +214,23 @@
 
     findElement(fieldId, selector) {
       if (fieldId) {
-        const byId = document.getElementById(fieldId);
-        if (byId) return byId;
+        try {
+          const byId = document.getElementById(fieldId);
+          if (byId) return byId;
+        } catch (e) {}
 
-        const byDataId = document.querySelector(`[data-efill-id="${CSS.escape(fieldId)}"]`);
-        if (byDataId) return byDataId;
+        try {
+          const escaped = CSS && CSS.escape ? CSS.escape(fieldId) : fieldId;
+          const byDataId = document.querySelector(`[data-efill-id="${escaped}"]`);
+          if (byDataId) return byDataId;
+        } catch (e) {}
       }
 
       if (selector) {
         try {
           const bySelector = document.querySelector(selector);
           if (bySelector) return bySelector;
-        } catch (e) {
-          // invalid selector syntax
-        }
+        } catch (e) {}
       }
 
       return null;

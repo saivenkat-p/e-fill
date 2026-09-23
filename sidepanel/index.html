@@ -16,25 +16,33 @@
       </div>
     </div>
     <div class="tab-nav">
-      <button class="tab-btn active" id="tab-review-btn">Review & Fill</button>
+      <button class="tab-btn active" id="tab-review-btn">Review &amp; Fill</button>
       <button class="tab-btn" id="tab-profile-btn">User Profile</button>
     </div>
   </header>
 
   <!-- Review & Fill View -->
   <main class="tab-view active" id="view-review">
+
+    <!-- Page Context Card -->
     <section class="page-context-card">
       <div class="context-meta">
-        <span class="badge badge-portal" id="portal-badge">Application Portal</span>
+        <!-- Eligibility banner -->
+        <div class="eligibility-banner" id="eligibility-banner">
+          <span class="eligibility-dot" id="eligibility-dot"></span>
+          <span class="eligibility-label" id="eligibility-label">Checking page...</span>
+        </div>
+        <!-- Application name shown when eligible -->
         <h2 class="page-title" id="page-title">Detecting form...</h2>
         <p class="page-url" id="page-url">Checking active browser tab</p>
       </div>
       <button class="btn btn-secondary btn-sm" id="btn-rescan" title="Rescan current page">
-        ↻ Rescan Page
+        ↻ Rescan
       </button>
     </section>
 
-    <section class="summary-bar" id="summary-bar">
+    <!-- Shown ONLY when page is eligible -->
+    <section class="summary-bar" id="summary-bar" style="display: none;">
       <div class="summary-pill ready">
         <span class="count" id="count-ready">0</span>
         <span class="label">Ready</span>
@@ -51,11 +59,22 @@
 
     <!-- Field Proposals Section -->
     <div class="proposals-container" id="proposals-container">
-      <div class="empty-state" id="empty-state">
+
+      <!-- Ineligible state — shown for unsupported pages -->
+      <div class="ineligible-state" id="ineligible-state" style="display: none;">
+        <div class="empty-icon">🛡️</div>
+        <h3>No supported application detected</h3>
+        <p>E-Fill only activates on recognized government and official application portals.</p>
+        <p class="ineligible-reason" id="ineligible-reason"></p>
+      </div>
+
+      <!-- Eligible but no fields found yet -->
+      <div class="empty-state" id="empty-state" style="display: none;">
         <div class="empty-icon">🔍</div>
         <h3>No Form Detected Yet</h3>
-        <p>Open a form page or click "Rescan Page" to detect and review fields.</p>
+        <p>Open a form page or click "Rescan" to detect and review fields.</p>
       </div>
+
       <div class="proposals-list" id="proposals-list" style="display: none;"></div>
     </div>
 
@@ -78,7 +97,7 @@
     <div class="profile-header">
       <div>
         <h2>Saved Profile</h2>
-        <p class="subtitle">Local-first encrypted storage for quick form completion</p>
+        <p class="subtitle">Local-first storage for quick form completion</p>
       </div>
       <button class="btn btn-secondary btn-sm" id="btn-reset-profile">
         Reset to Sample Data
@@ -173,6 +192,7 @@
   <script src="../core/storage.js"></script>
   <script src="../core/normalizer.js"></script>
   <script src="../core/source-selector.js"></script>
+  <script src="../core/app-profiles.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

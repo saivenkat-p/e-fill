@@ -300,15 +300,59 @@
       <ol style="margin-left: 20px; line-height: 1.8;">
         <li>Load E-Fill unpacked extension into Chrome from <code>c:\Users\saive\OneDrive\Desktop\E-fill</code>.</li>
         <li>Open this HTML page (<code>test/test-harness.html</code>) in Chrome.</li>
-        <li>Notice the floating <strong>"⚡ E-Fill: 10 fields detected"</strong> pill in the bottom-right corner.</li>
+        <li>Ensure <em>"Allow access to file URLs"</em> is enabled for E-Fill in <code>chrome://extensions</code> (or serve via local server).</li>
+        <li>Notice the floating <strong>"⚡ E-Fill: 11 fields detected"</strong> pill in the bottom-right corner.</li>
         <li>Click <strong>"Review in Side Panel"</strong> or the extension toolbar icon.</li>
-        <li>The Side Panel will open displaying the detected fields, mapped profile values, confidence, and source.</li>
+        <li>The Side Panel will open displaying all 11 detected fields, mapped profile values, confidence, and source.</li>
         <li>You can inspect, uncheck/exclude any field, or edit values directly in the Side Panel.</li>
         <li>Click <strong>"Autofill Approved Fields"</strong>. Observe the fields on this page populate with green verification highlights.</li>
         <li>Verify the declaration checkbox and final submit button are <strong>untouched</strong>.</li>
       </ol>
+      <div style="margin-top: 15px;">
+        <button type="button" id="btn-run-selftest" style="background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+          ▶ Run In-Page Detection & Mapping Self-Test
+        </button>
+        <div id="selftest-output" style="margin-top: 10px; font-family: monospace; font-size: 12px; display: none;"></div>
+      </div>
     </div>
   </main>
 
+  <script src="../core/canonical-schema.js"></script>
+  <script src="../core/normalizer.js"></script>
+  <script src="../core/source-selector.js"></script>
+  <script src="../content/field-reader.js"></script>
+  <script src="../content/form-detector.js"></script>
+  <script>
+    document.getElementById('btn-run-selftest').addEventListener('click', () => {
+      const out = document.getElementById('selftest-output');
+      out.style.display = 'block';
+      out.innerHTML = '<div style="color: #2563eb; font-weight: bold;">Running in-page audit...</div>';
+
+      const scan = window.EFillFormDetector.formDetector.scan();
+      const profile = window.EFillCanonicalSchema.DEFAULT_SYNTHETIC_PROFILE;
+      const proposals = window.EFillSourceSelector.sourceSelector.generateProposals(scan.fields, profile);
+
+      let html = '<div style="margin-top: 8px; border: 1px solid #cbd5e1; padding: 10px; background: white; border-radius: 4px;">';
+      html += '<strong>Form Detector Found:</strong> ' + scan.totalFound + ' fields<br>';
+      html += '<strong>Mapped Canonicals:</strong> ' + scan.mappedCount + ' of ' + scan.totalFound + '<br><br>';
+      html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px;">';
+      html += '<tr style="background: #f1f5f9; text-align: left;"><th style="padding: 4px;">Element ID</th><th style="padding: 4px;">Label</th><th style="padding: 4px;">Canonical</th><th style="padding: 4px;">Proposed Value</th><th style="padding: 4px;">Status</th></tr>';
+
+      proposals.forEach(p => {
+        const isOk = p.status === 'READY';
+        const color = isOk ? '#15803d' : '#b45309';
+        html += '<tr style="border-bottom: 1px solid #f1f5f9;">';
+        html += '<td style="padding: 4px;"><code>' + p.fieldId + '</code></td>';
+        html += '<td style="padding: 4px;">' + p.label + '</td>';
+        html += '<td style="padding: 4px;"><b>' + p.canonicalId + '</b></td>';
+        html += '<td style="padding: 4px;">' + p.proposedValue + '</td>';
+        html += '<td style="padding: 4px; color: ' + color + '; font-weight: bold;">' + p.status + '</td>';
+        html += '</tr>';
+      });
+
+      html += '</table></div>';
+      out.innerHTML = html;
+    });
+  </script>
 </body>
 </html>
