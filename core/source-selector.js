@@ -1,155 +1,264 @@
 /**
  * E-Fill Source Selector & Proposal Generator
+ * ============================================
  * Matches normalized form fields to user profile and document sources,
- * detects conflicts, applies format transformations, and assigns review statuses.
+ * calls the AvailabilityEngine for status determination, applies format
+ * transformations, and assembles fill proposals for the Side Panel.
+ *
+ * Works with both:
+ *   - v2 InformationProfile (structured with provenance)
+ *   - v1 legacy flat profile (backward-compat for tests)
  */
 
 (function (global) {
   'use strict';
 
   const STATUS = {
-    READY: 'READY',                   // High confidence, ready to autofill
-    REVIEW_REQUIRED: 'REVIEW_REQUIRED', // Needs user inspection/confirmation
-    CONFLICT: 'CONFLICT',             // Conflicting values detected
-    UNAVAILABLE: 'UNAVAILABLE',       // No corresponding profile value
-    UNIDENTIFIED: 'UNIDENTIFIED'      // Field could not be semantically normalized
+    READY:            'READY',             // Available, high confidence, auto-approved
+    REVIEW_REQUIRED:  'REVIEW_REQUIRED',   // Exists but needs user verification
+    CONFLICT:         'CONFLICT',          // Multiple sources with different values
+    UNAVAILABLE:      'UNAVAILABLE',       // No value in profile (MISSING)
+    AMBIGUOUS:        'AMBIGUOUS',         // Value exists, source unclear
+    UNIDENTIFIED:     'UNIDENTIFIED'       // Field not mapped to canonical schema
+  };
+
+  // Map AvailabilityEngine states to proposal STATUS
+  const AVAILABILITY_TO_STATUS = {
+    AVAILABLE:       STATUS.READY,
+    MISSING:         STATUS.UNAVAILABLE,
+    CONFLICT:        STATUS.CONFLICT,
+    AMBIGUOUS:       STATUS.AMBIGUOUS,
+    REVIEW_REQUIRED: STATUS.REVIEW_REQUIRED
   };
 
   class SourceSelector {
-    constructor() {}
-
-    /**
-     * Map detected fields to profile values and generate fill proposals.
-     * @param {Array} detectedFields Array of fields from FormDetector + Normalizer
-     * @param {Object} profile Structured user profile
-     * @returns {Array} Array of proposals
-     */
-    generateProposals(detectedFields, profile) {
-      if (!Array.isArray(detectedFields) || !profile) return [];
-
-      return detectedFields.map(field => this.createProposalForField(field, profile));
+    constructor(fieldDefinitions) {
+      this.fieldDefinitions = fieldDefinitions || {};
     }
 
-    createProposalForField(field, profile) {
+    /**
+     * Generate fill proposals for all detected fields.
+     *
+     * @param {Array}  detectedFields  — from FormDetector + Normalizer
+     * @param {Object} profile         — v2 InformationProfile data or legacy flat
+     * @param {Object} [extraSources]  — additional document-extracted values
+     * @returns {Array} proposals
+     */
+    generateProposals(detectedFields, profile, extraSources) {
+      if (!Array.isArray(detectedFields) || !profile) return [];
+
+      // Get AvailabilityEngine if available
+      const engine = global.EFillAvailabilityEngine
+        ? global.EFillAvailabilityEngine.availabilityEngine
+        : (typeof require !== 'undefined'
+          ? (() => { try { return require('./availability-engine.js').availabilityEngine; } catch(e) { return null; } })()
+          : null);
+
+      return detectedFields.map(field =>
+        this.createProposalForField(field, profile, extraSources, engine)
+      );
+    }
+
+    createProposalForField(field, profile, extraSources, engine) {
       const { canonicalId, confidence = 0, reason = '', elementId, label, options, type } = field;
 
+      // ── UNIDENTIFIED ───────────────────────────────────────────────────────
       if (!canonicalId) {
         return {
-          fieldId: elementId,
-          label: label || 'Unlabeled field',
-          type: type || 'text',
-          canonicalId: null,
-          proposedValue: '',
-          source: 'None',
-          status: STATUS.UNIDENTIFIED,
-          confidence: 0,
-          reason: 'Field could not be reliably mapped to a canonical profile attribute',
-          approved: false,
-          userEdited: false
+          fieldId:         elementId,
+          label:           label || 'Unlabeled field',
+          type:            type || 'text',
+          canonicalId:     null,
+          proposedValue:   '',
+          source:          'None',
+          provenance:      null,
+          provenanceLabel: null,
+          status:          STATUS.UNIDENTIFIED,
+          confidence:      0,
+          reason:          'Field could not be reliably mapped to a canonical profile attribute',
+          approved:        false,
+          userEdited:      false,
+          conflicts:       []
         };
       }
 
-      // Extract raw value and source description from profile
-      const extraction = this.extractFromProfile(canonicalId, profile);
+      // ── USE AVAILABILITY ENGINE (if available) ─────────────────────────────
+      if (engine) {
+        const avail = engine.check(canonicalId, profile, extraSources);
+        const status = AVAILABILITY_TO_STATUS[avail.status] || STATUS.UNAVAILABLE;
+
+        // If unavailable, no value to transform
+        if (status === STATUS.UNAVAILABLE) {
+          return {
+            fieldId:         elementId,
+            label:           label || canonicalId,
+            type:            type || 'text',
+            canonicalId,
+            proposedValue:   '',
+            source:          'Information Profile',
+            provenance:      null,
+            provenanceLabel: null,
+            status,
+            confidence,
+            reason:          `No saved information for "${canonicalId}"`,
+            approved:        false,
+            userEdited:      false,
+            conflicts:       []
+          };
+        }
+
+        // For CONFLICT — return with conflict list, no proposed value
+        if (status === STATUS.CONFLICT) {
+          return {
+            fieldId:         elementId,
+            label:           label || canonicalId,
+            type:            type || 'text',
+            canonicalId,
+            proposedValue:   '',
+            source:          'Multiple sources',
+            provenance:      null,
+            provenanceLabel: null,
+            status,
+            confidence,
+            reason:          avail.notes || 'Conflicting values detected — please choose',
+            approved:        false,
+            userEdited:      false,
+            conflicts:       avail.conflicts
+          };
+        }
+
+        // For AVAILABLE, REVIEW_REQUIRED, AMBIGUOUS — transform value
+        const transformed = this.transformValue(avail.value, field);
+        const finalStatus = this._adjustStatusByConfidence(status, confidence);
+
+        return {
+          fieldId:              elementId,
+          label:                label || canonicalId,
+          type:                 type || 'text',
+          canonicalId,
+          proposedValue:        transformed.value,
+          originalProfileValue: avail.value,
+          source:               avail.source || 'Information Profile',
+          provenance:           avail.provenance,
+          provenanceLabel:      this._provenanceLabel(avail.provenance),
+          status:               finalStatus,
+          confidence,
+          reason:               this._buildReason(finalStatus, reason, avail.notes, transformed),
+          approved:             finalStatus === STATUS.READY,
+          userEdited:           false,
+          conflicts:            []
+        };
+      }
+
+      // ── FALLBACK: no engine, use legacy extraction ─────────────────────────
+      const extraction = this._extractFromLegacy(canonicalId, profile);
       if (!extraction || !extraction.value) {
         return {
-          fieldId: elementId,
-          label: label || canonicalId,
-          type: type || 'text',
+          fieldId:       elementId,
+          label:         label || canonicalId,
+          type:          type || 'text',
           canonicalId,
           proposedValue: '',
-          source: extraction ? extraction.source : 'User Profile',
-          status: STATUS.UNAVAILABLE,
-          confidence: confidence,
-          reason: `No saved value in profile for "${canonicalId}"`,
-          approved: false,
-          userEdited: false
+          source:        'User Profile',
+          provenance:    null,
+          provenanceLabel: null,
+          status:        STATUS.UNAVAILABLE,
+          confidence,
+          reason:        `No saved value in profile for "${canonicalId}"`,
+          approved:      false,
+          userEdited:    false,
+          conflicts:     []
         };
       }
 
-      // Format transformation (e.g. Dates, Select options)
       const transformed = this.transformValue(extraction.value, field);
-
-      // Check status
-      let status = STATUS.READY;
-      let reviewReason = reason;
-
-      if (confidence < 0.85) {
-        status = STATUS.REVIEW_REQUIRED;
-        reviewReason = `Moderate confidence (${Math.round(confidence * 100)}%). ${reason}`;
-      } else if (transformed.transformed) {
-        // Slight review note if transformed significantly
-        reviewReason = `${reason} (Transformed format: ${transformed.transformNote})`;
-      }
+      let status = confidence < 0.85 ? STATUS.REVIEW_REQUIRED : STATUS.READY;
 
       return {
-        fieldId: elementId,
-        label: label || canonicalId,
-        type: type || 'text',
+        fieldId:              elementId,
+        label:                label || canonicalId,
+        type:                 type || 'text',
         canonicalId,
-        proposedValue: transformed.value,
+        proposedValue:        transformed.value,
         originalProfileValue: extraction.value,
-        source: extraction.source,
+        source:               extraction.source,
+        provenance:           'USER_ENTERED',
+        provenanceLabel:      'User entered',
         status,
         confidence,
-        reason: reviewReason,
-        approved: status === STATUS.READY,
-        userEdited: false
+        reason:               this._buildReason(status, reason, '', transformed),
+        approved:             status === STATUS.READY,
+        userEdited:           false,
+        conflicts:            []
       };
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    _adjustStatusByConfidence(status, confidence) {
+      // If normalizer confidence is low, escalate to REVIEW_REQUIRED
+      if (status === STATUS.READY && confidence < 0.85) return STATUS.REVIEW_REQUIRED;
+      return status;
+    }
+
+    _provenanceLabel(provenance) {
+      const labels = {
+        USER_ENTERED:        '✏️ User entered',
+        USER_CONFIRMED:      '✓ Confirmed',
+        USER_EDITED:         '✏️ User edited',
+        DOCUMENT_EXTRACTED:  '📄 From document',
+        IMPORTED:            '↓ Imported',
+        APPLICATION_SPECIFIC: '🔧 App-specific'
+      };
+      return provenance ? (labels[provenance] || provenance) : null;
+    }
+
+    _buildReason(status, normReason, availNotes, transformed) {
+      const parts = [];
+      if (normReason) parts.push(normReason);
+      if (availNotes) parts.push(availNotes);
+      if (transformed && transformed.transformed) parts.push(`Transformed: ${transformed.transformNote}`);
+      return parts.join(' · ') || `Status: ${status}`;
+    }
+
     /**
-     * Extracts canonical value from profile structure.
+     * Legacy flat profile extraction (used when AvailabilityEngine is not available).
      */
-    extractFromProfile(canonicalId, profile) {
+    _extractFromLegacy(canonicalId, profile) {
+      if (!profile) return null;
       const p = profile.personal || {};
       const c = profile.contact || {};
       const f = profile.family || {};
       const a = profile.address || {};
 
-      switch (canonicalId) {
-        case 'full_name':
-          return {
-            value: p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
-            source: 'Profile: Personal (Full Name)'
-          };
-        case 'first_name':
-          return { value: p.firstName, source: 'Profile: Personal (First Name)' };
-        case 'middle_name':
-          return { value: p.middleName, source: 'Profile: Personal (Middle Name)' };
-        case 'last_name':
-          return { value: p.lastName, source: 'Profile: Personal (Last Name)' };
-        case 'dob':
-          return { value: p.dob, source: 'Profile: Personal (Date of Birth)' };
-        case 'gender':
-          return { value: p.gender, source: 'Profile: Personal (Gender)' };
+      const map = {
+        full_name:    { value: p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim(), source: 'Profile: Personal (Full Name)' },
+        first_name:   { value: p.firstName,  source: 'Profile: Personal (First Name)' },
+        middle_name:  { value: p.middleName, source: 'Profile: Personal (Middle Name)' },
+        last_name:    { value: p.lastName,   source: 'Profile: Personal (Last Name)' },
+        dob:          { value: p.dob,        source: 'Profile: Personal (Date of Birth)' },
+        gender:       { value: p.gender,     source: 'Profile: Personal (Gender)' },
+        primary_phone: { value: c.primaryPhone, source: 'Profile: Contact (Mobile)' },
+        email:        { value: c.email,         source: 'Profile: Contact (Email)' },
+        father_name:  { value: f.fatherName,    source: 'Profile: Family (Father)' },
+        mother_name:  { value: f.motherName,    source: 'Profile: Family (Mother)' },
+        guardian_name: { value: f.guardianName, source: 'Profile: Family (Guardian)' },
+        address_line: { value: a.addressLine || `${a.houseNumber || ''}, ${a.street || ''}`.trim(), source: 'Profile: Address' },
+        house_number: { value: a.houseNumber,   source: 'Profile: Address' },
+        street:       { value: a.street,        source: 'Profile: Address' },
+        village:      { value: a.village,       source: 'Profile: Address' },
+        mandal:       { value: a.mandal,        source: 'Profile: Address' },
+        district:     { value: a.district,      source: 'Profile: Address (District)' },
+        state:        { value: a.state,         source: 'Profile: Address (State)' },
+        country:      { value: a.country,       source: 'Profile: Address (Country)' },
+        pincode:      { value: a.pincode,       source: 'Profile: Address (PIN)' }
+      };
 
-        case 'primary_phone':
-          return { value: c.primaryPhone, source: 'Profile: Contact (Mobile)' };
-        case 'email':
-          return { value: c.email, source: 'Profile: Contact (Email)' };
-
-        case 'father_name':
-          return { value: f.fatherName, source: 'Profile: Family (Father)' };
-        case 'mother_name':
-          return { value: f.motherName, source: 'Profile: Family (Mother)' };
-
-        case 'address_line':
-          return { value: a.addressLine || `${a.houseNumber || ''}, ${a.street || ''}`.trim(), source: 'Profile: Address' };
-        case 'district':
-          return { value: a.district, source: 'Profile: Address (District)' };
-        case 'state':
-          return { value: a.state, source: 'Profile: Address (State)' };
-        case 'pincode':
-          return { value: a.pincode, source: 'Profile: Address (PIN)' };
-
-        default:
-          return null;
-      }
+      return map[canonicalId] || null;
     }
 
     /**
-     * Transforms profile value to fit the target field format.
+     * Transforms a profile value to fit the target field format.
      */
     transformValue(value, field) {
       if (!value) return { value: '', transformed: false };
@@ -159,37 +268,28 @@
 
       // 1. Date of Birth transformations
       if (field.canonicalId === 'dob') {
-        // standard profile dob is YYYY-MM-DD
         const parts = value.split('-');
         if (parts.length === 3) {
           const [year, month, day] = parts;
           if (label.includes('dd/mm/yyyy') || placeholder.includes('dd/mm/yyyy') || label.includes('dd-mm-yyyy')) {
-            return {
-              value: `${day}/${month}/${year}`,
-              transformed: true,
-              transformNote: 'Converted to DD/MM/YYYY'
-            };
+            return { value: `${day}/${month}/${year}`, transformed: true, transformNote: 'Converted to DD/MM/YYYY' };
           }
           if (field.type === 'date') {
-            // HTML5 date inputs expect YYYY-MM-DD
             return { value: `${year}-${month}-${day}`, transformed: false };
           }
         }
       }
 
       // 2. Select option matching
-      if (field.type === 'select-one' && Array.isArray(field.options) && field.options.length > 0) {
+      if ((field.type === 'select-one' || field.type === 'select') && Array.isArray(field.options) && field.options.length > 0) {
         const valClean = String(value).trim().toLowerCase();
         for (const opt of field.options) {
           const optText = (opt.text || '').trim().toLowerCase();
-          const optVal = (opt.value || '').trim().toLowerCase();
-
-          // Exact text or value match
+          const optVal  = (opt.value || '').trim().toLowerCase();
           if (optText === valClean || optVal === valClean) {
             return { value: opt.value || opt.text, transformed: false };
           }
-          // Abbreviated match (e.g. Male -> M)
-          if (valClean.length > 0 && (optVal === valClean[0] || optText === valClean[0])) {
+          if (valClean.length > 0 && (optVal === valClean[0] || optText === valClean[0] || optText.startsWith(valClean))) {
             return { value: opt.value || opt.text, transformed: true, transformNote: `Matched option "${opt.text}"` };
           }
         }

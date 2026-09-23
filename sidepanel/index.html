@@ -17,22 +17,22 @@
     </div>
     <div class="tab-nav">
       <button class="tab-btn active" id="tab-review-btn">Review &amp; Fill</button>
-      <button class="tab-btn" id="tab-profile-btn">User Profile</button>
+      <button class="tab-btn" id="tab-info-btn">My Information</button>
     </div>
   </header>
 
-  <!-- Review & Fill View -->
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 1: Review & Fill
+  ═══════════════════════════════════════════════════════════════ -->
   <main class="tab-view active" id="view-review">
 
     <!-- Page Context Card -->
     <section class="page-context-card">
       <div class="context-meta">
-        <!-- Eligibility banner -->
         <div class="eligibility-banner" id="eligibility-banner">
           <span class="eligibility-dot" id="eligibility-dot"></span>
           <span class="eligibility-label" id="eligibility-label">Checking page...</span>
         </div>
-        <!-- Application name shown when eligible -->
         <h2 class="page-title" id="page-title">Detecting form...</h2>
         <p class="page-url" id="page-url">Checking active browser tab</p>
       </div>
@@ -41,7 +41,7 @@
       </button>
     </section>
 
-    <!-- Shown ONLY when page is eligible -->
+    <!-- Summary Bar (eligible only) -->
     <section class="summary-bar" id="summary-bar" style="display: none;">
       <div class="summary-pill ready">
         <span class="count" id="count-ready">0</span>
@@ -51,16 +51,20 @@
         <span class="count" id="count-review">0</span>
         <span class="label">Review</span>
       </div>
+      <div class="summary-pill conflict">
+        <span class="count" id="count-conflict">0</span>
+        <span class="label">Conflict</span>
+      </div>
       <div class="summary-pill unavailable">
         <span class="count" id="count-unavailable">0</span>
-        <span class="label">Unavailable</span>
+        <span class="label">Missing</span>
       </div>
     </section>
 
-    <!-- Field Proposals Section -->
+    <!-- Field Proposals Container -->
     <div class="proposals-container" id="proposals-container">
 
-      <!-- Ineligible state — shown for unsupported pages -->
+      <!-- Ineligible state -->
       <div class="ineligible-state" id="ineligible-state" style="display: none;">
         <div class="empty-icon">🛡️</div>
         <h3>No supported application detected</h3>
@@ -68,17 +72,58 @@
         <p class="ineligible-reason" id="ineligible-reason"></p>
       </div>
 
-      <!-- Eligible but no fields found yet -->
+      <!-- Eligible but no fields yet -->
       <div class="empty-state" id="empty-state" style="display: none;">
         <div class="empty-icon">🔍</div>
         <h3>No Form Detected Yet</h3>
         <p>Open a form page or click "Rescan" to detect and review fields.</p>
       </div>
 
-      <div class="proposals-list" id="proposals-list" style="display: none;"></div>
+      <!-- Proposals grouped by status -->
+      <div id="proposals-list" style="display: none;">
+        <!-- Group: Ready -->
+        <div class="proposal-group" id="group-ready" style="display: none;">
+          <div class="group-header group-header-ready">
+            <span class="group-header-icon">✅</span>
+            <span class="group-header-label">Ready to Fill</span>
+            <span class="group-header-count" id="group-count-ready">0</span>
+          </div>
+          <div class="proposals-stack" id="stack-ready"></div>
+        </div>
+
+        <!-- Group: Review Required -->
+        <div class="proposal-group" id="group-review" style="display: none;">
+          <div class="group-header group-header-review">
+            <span class="group-header-icon">⚠️</span>
+            <span class="group-header-label">Review Required</span>
+            <span class="group-header-count" id="group-count-review">0</span>
+          </div>
+          <div class="proposals-stack" id="stack-review"></div>
+        </div>
+
+        <!-- Group: Conflicts -->
+        <div class="proposal-group" id="group-conflict" style="display: none;">
+          <div class="group-header group-header-conflict">
+            <span class="group-header-icon">⚡</span>
+            <span class="group-header-label">Conflicts — Choose a value</span>
+            <span class="group-header-count" id="group-count-conflict">0</span>
+          </div>
+          <div class="proposals-stack" id="stack-conflict"></div>
+        </div>
+
+        <!-- Group: Missing Information -->
+        <div class="proposal-group" id="group-missing" style="display: none;">
+          <div class="group-header group-header-missing">
+            <span class="group-header-icon">ℹ️</span>
+            <span class="group-header-label">Missing Information</span>
+            <span class="group-header-count" id="group-count-missing">0</span>
+          </div>
+          <div class="proposals-stack" id="stack-missing"></div>
+        </div>
+      </div>
     </div>
 
-    <!-- Verification / Result Alert -->
+    <!-- Result Alert -->
     <div class="result-alert" id="result-alert" style="display: none;"></div>
 
     <!-- Footer Action Bar -->
@@ -92,105 +137,435 @@
     </footer>
   </main>
 
-  <!-- User Profile View -->
-  <main class="tab-view" id="view-profile">
-    <div class="profile-header">
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 2: My Information
+  ═══════════════════════════════════════════════════════════════ -->
+  <main class="tab-view" id="view-info">
+
+    <div class="info-header">
       <div>
-        <h2>Saved Profile</h2>
-        <p class="subtitle">Local-first storage for quick form completion</p>
+        <h2>My Information</h2>
+        <p class="subtitle">Stored locally. Never sent without your review.</p>
       </div>
-      <button class="btn btn-secondary btn-sm" id="btn-reset-profile">
-        Reset to Sample Data
+      <button class="btn btn-secondary btn-sm" id="btn-reset-info">
+        Reset to Sample
       </button>
     </div>
 
-    <form id="profile-form" class="profile-form">
-      <fieldset class="profile-section">
-        <legend>Personal Details</legend>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="prof-fullName">Full Name</label>
-            <input type="text" id="prof-fullName" required>
-          </div>
-        </div>
-        <div class="form-row two-col">
-          <div class="form-group">
-            <label for="prof-dob">Date of Birth</label>
-            <input type="date" id="prof-dob" required>
-          </div>
-          <div class="form-group">
-            <label for="prof-gender">Gender</label>
-            <select id="prof-gender">
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Transgender">Transgender</option>
-            </select>
-          </div>
-        </div>
-      </fieldset>
+    <div class="info-sections" id="info-sections">
 
-      <fieldset class="profile-section">
-        <legend>Contact Information</legend>
-        <div class="form-row two-col">
-          <div class="form-group">
-            <label for="prof-mobile">Mobile Number (10 digits)</label>
-            <input type="tel" id="prof-mobile" maxlength="10" required>
-          </div>
-          <div class="form-group">
-            <label for="prof-email">Email Address</label>
-            <input type="email" id="prof-email" required>
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset class="profile-section">
-        <legend>Family Details</legend>
-        <div class="form-row two-col">
-          <div class="form-group">
-            <label for="prof-fatherName">Father's Name</label>
-            <input type="text" id="prof-fatherName">
-          </div>
-          <div class="form-group">
-            <label for="prof-motherName">Mother's Name</label>
-            <input type="text" id="prof-motherName">
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset class="profile-section">
-        <legend>Permanent Address</legend>
-        <div class="form-group">
-          <label for="prof-addressLine">Address (House, Street, Area)</label>
-          <textarea id="prof-addressLine" rows="2"></textarea>
-        </div>
-        <div class="form-row three-col">
-          <div class="form-group">
-            <label for="prof-district">District</label>
-            <input type="text" id="prof-district">
-          </div>
-          <div class="form-group">
-            <label for="prof-state">State / UT</label>
-            <input type="text" id="prof-state">
-          </div>
-          <div class="form-group">
-            <label for="prof-pincode">PIN Code</label>
-            <input type="text" id="prof-pincode" maxlength="6">
-          </div>
-        </div>
-      </fieldset>
-
-      <div class="profile-actions">
-        <button type="submit" class="btn btn-primary" id="btn-save-profile">
-          Save Profile Changes
+      <!-- ── PERSONAL ────────────────────────────────────── -->
+      <div class="info-section" data-section="personal">
+        <button class="section-toggle" aria-expanded="true">
+          <span class="section-icon">👤</span>
+          <span class="section-label">Personal Details</span>
+          <span class="section-chevron">▾</span>
         </button>
-        <span class="save-toast" id="save-toast">Saved to local storage!</span>
+        <div class="section-body">
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-full-name">Full Name</label>
+              <input type="text" id="ip-full-name" data-field="full_name" placeholder="As per official documents">
+            </div>
+            <div class="form-group">
+              <label for="ip-dob">Date of Birth</label>
+              <input type="date" id="ip-dob" data-field="dob">
+            </div>
+          </div>
+          <div class="form-row three-col">
+            <div class="form-group">
+              <label for="ip-first-name">First Name</label>
+              <input type="text" id="ip-first-name" data-field="first_name">
+            </div>
+            <div class="form-group">
+              <label for="ip-middle-name">Middle Name</label>
+              <input type="text" id="ip-middle-name" data-field="middle_name">
+            </div>
+            <div class="form-group">
+              <label for="ip-last-name">Last Name / Surname</label>
+              <input type="text" id="ip-last-name" data-field="last_name">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-gender">Gender</label>
+              <select id="ip-gender" data-field="gender">
+                <option value="">-- Select --</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Transgender">Transgender</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ip-nationality">Nationality</label>
+              <input type="text" id="ip-nationality" data-field="nationality" placeholder="Indian">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-marital-status">Marital Status</label>
+              <select id="ip-marital-status" data-field="marital_status">
+                <option value="">-- Select --</option>
+                <option value="Single">Single / Unmarried</option>
+                <option value="Married">Married</option>
+                <option value="Divorced">Divorced</option>
+                <option value="Widowed">Widowed</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
-    </form>
+
+      <!-- ── IDENTITY ────────────────────────────────────── -->
+      <div class="info-section sensitive-section" data-section="identity">
+        <button class="section-toggle" aria-expanded="false">
+          <span class="section-icon">🪪</span>
+          <span class="section-label">Identity Documents</span>
+          <span class="section-sensitive-badge">🔒 Sensitive</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body" style="display: none;">
+          <div class="sensitive-notice">
+            <span>🔒</span> These fields are masked and will only be used with your explicit confirmation.
+          </div>
+          <div class="form-group">
+            <label for="ip-aadhaar">Aadhaar Number</label>
+            <div class="sensitive-field-row">
+              <input type="password" id="ip-aadhaar" data-field="aadhaar_number" maxlength="12" placeholder="••••••••••••" class="sensitive-input">
+              <button type="button" class="btn-reveal" data-target="ip-aadhaar" title="Show / hide">👁</button>
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-alt-id-type">ID Document Type</label>
+              <select id="ip-alt-id-type" data-field="alt_id_type">
+                <option value="">-- Select --</option>
+                <option value="PAN">PAN Card</option>
+                <option value="Passport">Passport</option>
+                <option value="Voter ID">Voter ID</option>
+                <option value="Driving License">Driving License</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ip-alt-id-num">Document Number</label>
+              <div class="sensitive-field-row">
+                <input type="password" id="ip-alt-id-num" data-field="alt_id_number" placeholder="••••••••" class="sensitive-input">
+                <button type="button" class="btn-reveal" data-target="ip-alt-id-num" title="Show / hide">👁</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CONTACT ─────────────────────────────────────── -->
+      <div class="info-section" data-section="contact">
+        <button class="section-toggle" aria-expanded="true">
+          <span class="section-icon">📱</span>
+          <span class="section-label">Contact Information</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body">
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-phone">Primary Mobile</label>
+              <input type="tel" id="ip-phone" data-field="primary_phone" maxlength="10" placeholder="10-digit mobile">
+            </div>
+            <div class="form-group">
+              <label for="ip-email">Email Address</label>
+              <input type="email" id="ip-email" data-field="email" placeholder="your@email.com">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-phone2">Alternate Mobile</label>
+              <input type="tel" id="ip-phone2" data-field="secondary_phone" maxlength="10">
+            </div>
+            <div class="form-group">
+              <label for="ip-email2">Alternate Email</label>
+              <input type="email" id="ip-email2" data-field="secondary_email">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ADDRESS ─────────────────────────────────────── -->
+      <div class="info-section" data-section="address">
+        <button class="section-toggle" aria-expanded="false">
+          <span class="section-icon">🏠</span>
+          <span class="section-label">Address</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body" style="display: none;">
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-house">House / Door Number</label>
+              <input type="text" id="ip-house" data-field="house_number" placeholder="Plot No / Flat No">
+            </div>
+            <div class="form-group">
+              <label for="ip-street">Street / Colony / Area</label>
+              <input type="text" id="ip-street" data-field="street">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="ip-address-line">Full Address Line</label>
+            <textarea id="ip-address-line" data-field="address_line" rows="2" placeholder="House No, Street, Area"></textarea>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-village">Village / Town</label>
+              <input type="text" id="ip-village" data-field="village">
+            </div>
+            <div class="form-group">
+              <label for="ip-mandal">Mandal / Tehsil / Taluk</label>
+              <input type="text" id="ip-mandal" data-field="mandal">
+            </div>
+          </div>
+          <div class="form-row three-col">
+            <div class="form-group">
+              <label for="ip-district">District</label>
+              <input type="text" id="ip-district" data-field="district">
+            </div>
+            <div class="form-group">
+              <label for="ip-state">State / UT</label>
+              <input type="text" id="ip-state" data-field="state">
+            </div>
+            <div class="form-group">
+              <label for="ip-pincode">PIN Code</label>
+              <input type="text" id="ip-pincode" data-field="pincode" maxlength="6">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-city">City</label>
+              <input type="text" id="ip-city" data-field="city">
+            </div>
+            <div class="form-group">
+              <label for="ip-country">Country</label>
+              <input type="text" id="ip-country" data-field="country" placeholder="India">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── FAMILY ──────────────────────────────────────── -->
+      <div class="info-section" data-section="family">
+        <button class="section-toggle" aria-expanded="false">
+          <span class="section-icon">👨‍👩‍👦</span>
+          <span class="section-label">Family Details</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body" style="display: none;">
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-father">Father's Name</label>
+              <input type="text" id="ip-father" data-field="father_name">
+            </div>
+            <div class="form-group">
+              <label for="ip-mother">Mother's Name</label>
+              <input type="text" id="ip-mother" data-field="mother_name">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-guardian">Guardian's Name</label>
+              <input type="text" id="ip-guardian" data-field="guardian_name">
+            </div>
+            <div class="form-group">
+              <label for="ip-spouse">Spouse's Name</label>
+              <input type="text" id="ip-spouse" data-field="spouse_name">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CATEGORY / RESERVATION ─────────────────────── -->
+      <div class="info-section" data-section="category">
+        <button class="section-toggle" aria-expanded="false">
+          <span class="section-icon">📋</span>
+          <span class="section-label">Category / Reservation</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body" style="display: none;">
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-category">Category</label>
+              <select id="ip-category" data-field="category">
+                <option value="">-- Select --</option>
+                <option value="General">General / UR</option>
+                <option value="OBC">OBC</option>
+                <option value="SC">SC</option>
+                <option value="ST">ST</option>
+                <option value="EWS">EWS</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ip-caste">Caste / Community</label>
+              <input type="text" id="ip-caste" data-field="caste_community">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-ews">EWS Status</label>
+              <select id="ip-ews" data-field="ews_status">
+                <option value="">-- Select --</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── EDUCATION (multi-record) ────────────────────── -->
+      <div class="info-section" data-section="education">
+        <button class="section-toggle" aria-expanded="false">
+          <span class="section-icon">🎓</span>
+          <span class="section-label">Education</span>
+          <span class="section-badge" id="edu-count-badge">0 records</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body" style="display: none;">
+          <div id="edu-records-container">
+            <!-- Education record cards rendered by JS -->
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm edu-add-btn" id="btn-add-education">
+            + Add Education Record
+          </button>
+        </div>
+      </div>
+
+      <!-- ── EMPLOYMENT ──────────────────────────────────── -->
+      <div class="info-section" data-section="employment">
+        <button class="section-toggle" aria-expanded="false">
+          <span class="section-icon">💼</span>
+          <span class="section-label">Employment</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body" style="display: none;">
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-emp-status">Employment Status</label>
+              <select id="ip-emp-status" data-field="employment_status">
+                <option value="">-- Select --</option>
+                <option value="Employed">Employed</option>
+                <option value="Unemployed">Unemployed</option>
+                <option value="Self-Employed">Self-Employed</option>
+                <option value="Student">Student</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ip-employer">Employer / Organization</label>
+              <input type="text" id="ip-employer" data-field="employer">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-designation">Designation / Post</label>
+              <input type="text" id="ip-designation" data-field="designation">
+            </div>
+            <div class="form-group">
+              <label for="ip-exp">Years of Experience</label>
+              <input type="number" id="ip-exp" data-field="years_of_experience" min="0" max="50">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-govt-emp">Government Employee</label>
+              <select id="ip-govt-emp" data-field="govt_employee_status">
+                <option value="">-- Select --</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ADDITIONAL ──────────────────────────────────── -->
+      <div class="info-section" data-section="additional">
+        <button class="section-toggle" aria-expanded="false">
+          <span class="section-icon">📎</span>
+          <span class="section-label">Additional Information</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body" style="display: none;">
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-ex-service">Ex-Serviceman</label>
+              <select id="ip-ex-service" data-field="ex_serviceman_status">
+                <option value="">-- Select --</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ip-disability">Disability Type (if any)</label>
+              <input type="text" id="ip-disability" data-field="disability_type" placeholder="e.g. Orthopaedic">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="ip-disability-pct">Disability Percentage</label>
+            <input type="text" id="ip-disability-pct" data-field="disability_percentage" placeholder="e.g. 40%">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── BANKING (sensitive) ─────────────────────────── -->
+      <div class="info-section sensitive-section" data-section="banking">
+        <button class="section-toggle" aria-expanded="false">
+          <span class="section-icon">🏦</span>
+          <span class="section-label">Banking Details</span>
+          <span class="section-sensitive-badge">🔒 Sensitive</span>
+          <span class="section-chevron">▾</span>
+        </button>
+        <div class="section-body" style="display: none;">
+          <div class="sensitive-notice">
+            <span>🔒</span> Bank details are masked and will never be autofilled without your explicit approval per field.
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="ip-bank-name">Bank Name</label>
+              <input type="text" id="ip-bank-name" data-field="bank_name" placeholder="e.g. State Bank of India">
+            </div>
+            <div class="form-group">
+              <label for="ip-bank-holder">Account Holder Name</label>
+              <input type="text" id="ip-bank-holder" data-field="bank_account_holder">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="ip-account-num">Account Number</label>
+            <div class="sensitive-field-row">
+              <input type="password" id="ip-account-num" data-field="bank_account_number" class="sensitive-input" placeholder="••••••••••••">
+              <button type="button" class="btn-reveal" data-target="ip-account-num" title="Show / hide">👁</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="ip-ifsc">IFSC Code</label>
+            <div class="sensitive-field-row">
+              <input type="password" id="ip-ifsc" data-field="bank_ifsc" class="sensitive-input" placeholder="••••••••••••" maxlength="11">
+              <button type="button" class="btn-reveal" data-target="ip-ifsc" title="Show / hide">👁</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /info-sections -->
+
+    <!-- Save bar -->
+    <div class="info-save-bar">
+      <button type="button" class="btn btn-primary" id="btn-save-info">
+        Save My Information
+      </button>
+      <span class="save-toast" id="save-toast-info">Saved to local storage!</span>
+    </div>
+
   </main>
 
+  <!-- Scripts load order: schema → storage → profile → availability → source-selector → app-profiles → sidepanel -->
   <script src="../core/canonical-schema.js"></script>
   <script src="../core/storage.js"></script>
-  <script src="../core/normalizer.js"></script>
+  <script src="../core/information-profile.js"></script>
+  <script src="../core/availability-engine.js"></script>
   <script src="../core/source-selector.js"></script>
   <script src="../core/app-profiles.js"></script>
   <script src="sidepanel.js"></script>

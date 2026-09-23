@@ -168,6 +168,61 @@
         'full_name', 'dob', 'gender', 'primary_phone', 'email',
         'father_name', 'mother_name', 'address_line', 'district', 'state', 'pincode'
       ]
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GATE — GRADUATE APTITUDE TEST IN ENGINEERING
+    // ─────────────────────────────────────────────────────────────────────────
+    //
+    // GATE is organized by IITs on rotation. The GOAPS (GATE Online Application
+    // Processing System) hostname changes each cycle based on the organizing IIT.
+    //
+    // HOW TO ADD A FUTURE CYCLE (read before editing):
+    //   1. Confirm the new official GOAPS hostname from the official GATE
+    //      notification or gate.iitx.ac.in (do NOT add unverified hosts).
+    //   2. Add a new urlPattern entry: { protocol: 'https', hostname: 'goaps.iitx.ac.in' }
+    //   3. Bump the version string.
+    //   4. Add a recognition test in Group 17 of test/test-runner.cjs.
+    //
+    // CURRENT CYCLE: GATE 2027 — Organizer: IIT Madras
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+      id: 'gate-goaps',
+      name: 'GATE Online Application System (GOAPS)',
+      description:
+        'Graduate Aptitude Test in Engineering — official online application portal. ' +
+        'Currently operated by IIT Madras for GATE 2027 (goaps.iitm.ac.in). ' +
+        'To support future cycles, add the new GOAPS hostname as a urlPattern ' +
+        'after official confirmation. Do not add unverified hosts.',
+      version: '1.0',
+      urlPatterns: [
+        // GATE 2027 — IIT Madras organizer.
+        // The entire goaps.iitm.ac.in domain is the GATE application system;
+        // no pathPrefix restriction is needed — every page on this host is part
+        // of the GATE portal (login, dashboard, applicationFiling, payment, etc.).
+        { protocol: 'https', hostname: 'goaps.iitm.ac.in' }
+      ],
+      fieldHints: [
+        // Personal
+        'full_name', 'dob', 'gender', 'nationality',
+        // Category / Reservation
+        'category', 'ews_status', 'disability_type',
+        // Contact
+        'primary_phone', 'email',
+        // Address
+        'address_line', 'city', 'district', 'state', 'pincode',
+        // Family
+        'father_name', 'mother_name',
+        // Identity
+        'aadhaar_number',
+        // Education (GATE requires qualifying degree details)
+        'edu_qualification', 'edu_institution', 'edu_board',
+        'edu_year', 'edu_percentage', 'edu_roll_number'
+      ],
+      notes:
+        'Only goaps.iitm.ac.in (GATE 2027, IIT Madras) is registered here. ' +
+        'Do not add unverified or rotational hosts without official confirmation. ' +
+        'See the HOW TO ADD comment above for the extensibility pattern.'
     }
 
   ];

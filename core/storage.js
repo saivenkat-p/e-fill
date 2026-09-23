@@ -1,17 +1,28 @@
 /**
  * E-Fill Storage Layer
+ * ====================
  * Local-first storage:
- * - chrome.storage.local for lightweight profile, settings, metadata
- * - IndexedDB for documents, certificates, photos (prepared for future phases)
- * - Extensible adapter interface for future cloud sync without breaking changes.
+ *   - chrome.storage.local for structured profile, settings, metadata
+ *   - IndexedDB for documents (Phase 6+)
+ *
+ * Storage keys:
+ *   efill_user_profile       — legacy flat profile (v1, backward-compat)
+ *   efill_information_profile — v2 InformationProfile with provenance (new)
+ *   efill_settings           — user settings
+ *
+ * Migration:
+ *   On first load with a new installation, if only the legacy profile exists,
+ *   it is automatically migrated to v2 format and saved under the new key.
+ *   The legacy key is preserved for backward-compatibility.
  */
 
 (function (global) {
   'use strict';
 
   const STORAGE_KEYS = {
-    USER_PROFILE: 'efill_user_profile',
-    SETTINGS: 'efill_settings'
+    USER_PROFILE:          'efill_user_profile',         // v1 legacy flat
+    INFORMATION_PROFILE:   'efill_information_profile',  // v2 structured with provenance
+    SETTINGS:              'efill_settings'
   };
 
   const DEFAULT_SETTINGS = {
@@ -20,6 +31,7 @@
     enableIndicator: true
   };
 
+  // ── Storage Adapter ────────────────────────────────────────────────────────
   class StorageAdapter {
     async get(key) {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -27,7 +39,6 @@
           chrome.storage.local.get([key], (res) => resolve(res[key]));
         });
       }
-      // Fallback for node or tests
       if (typeof localStorage !== 'undefined') {
         const val = localStorage.getItem(key);
         return val ? JSON.parse(val) : undefined;
@@ -63,29 +74,28 @@
     }
   }
 
+  // ── StorageManager ─────────────────────────────────────────────────────────
   class StorageManager {
     constructor() {
       this.adapter = new StorageAdapter();
       this.db = null;
     }
 
+    // ── Legacy flat profile (v1) ─────────────────────────────────────────────
+    // Kept for backward-compatibility with tests and source-selector fallback.
+
     async getProfile() {
       let profile = await this.adapter.get(STORAGE_KEYS.USER_PROFILE);
       if (!profile) {
-        // Fallback to default synthetic profile
         const schema = global.EFillCanonicalSchema || (typeof require !== 'undefined' ? require('./canonical-schema.js') : null);
         profile = schema ? schema.DEFAULT_SYNTHETIC_PROFILE : null;
-        if (profile) {
-          await this.saveProfile(profile);
-        }
+        if (profile) await this.saveProfile(profile);
       }
       return profile;
     }
 
     async saveProfile(profile) {
-      if (!profile || typeof profile !== 'object') {
-        throw new Error('Invalid profile object.');
-      }
+      if (!profile || typeof profile !== 'object') throw new Error('Invalid profile object.');
       profile.lastUpdated = new Date().toISOString();
       await this.adapter.set(STORAGE_KEYS.USER_PROFILE, profile);
       return profile;
@@ -102,6 +112,70 @@
       return null;
     }
 
+    // ── v2 InformationProfile ────────────────────────────────────────────────
+
+    /**
+     * Get the v2 InformationProfile.
+     * If it doesn't exist, attempts migration from the legacy v1 profile.
+     * Returns raw JSON data (not an InformationProfile class instance) for simplicity.
+     */
+    async getInformationProfile() {
+      let data = await this.adapter.get(STORAGE_KEYS.INFORMATION_PROFILE);
+
+      // If v2 profile exists and is valid, return it
+      if (data && data.version === '2.0') {
+        return data;
+      }
+
+      // Try to migrate from legacy
+      const legacy = await this.getProfile();
+      if (legacy) {
+        const migrated = await this.migrateProfileIfNeeded(legacy);
+        if (migrated) return migrated;
+      }
+
+      // Last resort: create empty v2 profile
+      const ipMod = global.EFillInformationProfile || (typeof require !== 'undefined' ? require('./information-profile.js') : null);
+      if (ipMod) {
+        const ip = new ipMod.InformationProfile(null);
+        const raw = ip.toJSON();
+        await this.saveInformationProfile(raw);
+        return raw;
+      }
+
+      return null;
+    }
+
+    /**
+     * Save raw v2 InformationProfile JSON data.
+     */
+    async saveInformationProfile(profileData) {
+      if (!profileData || typeof profileData !== 'object') throw new Error('Invalid information profile data.');
+      profileData.lastUpdated = new Date().toISOString();
+      await this.adapter.set(STORAGE_KEYS.INFORMATION_PROFILE, profileData);
+      return profileData;
+    }
+
+    /**
+     * Migrate legacy flat profile to v2 InformationProfile.
+     * Only migrates if the v2 profile doesn't already exist.
+     * Returns the new v2 profile data, or null if migration not needed.
+     */
+    async migrateProfileIfNeeded(legacyProfile) {
+      const existing = await this.adapter.get(STORAGE_KEYS.INFORMATION_PROFILE);
+      if (existing && existing.version === '2.0') return existing; // Already migrated
+
+      const ipMod = global.EFillInformationProfile || (typeof require !== 'undefined' ? require('./information-profile.js') : null);
+      if (!ipMod || !legacyProfile) return null;
+
+      const ip = ipMod.InformationProfile.migrateFromLegacy(legacyProfile);
+      const raw = ip.toJSON();
+      await this.saveInformationProfile(raw);
+      return raw;
+    }
+
+    // ── Settings ─────────────────────────────────────────────────────────────
+
     async getSettings() {
       const settings = await this.adapter.get(STORAGE_KEYS.SETTINGS);
       return Object.assign({}, DEFAULT_SETTINGS, settings || {});
@@ -113,9 +187,8 @@
       return updated;
     }
 
-    /**
-     * IndexedDB Initialization for Document Vault (Phase 3 readiness)
-     */
+    // ── IndexedDB Document Vault (Phase 6+ readiness) ────────────────────────
+
     async openDocumentDB() {
       if (this.db) return this.db;
       if (typeof indexedDB === 'undefined') return null;
@@ -128,10 +201,7 @@
             db.createObjectStore('documents', { keyPath: 'id' });
           }
         };
-        req.onsuccess = (e) => {
-          this.db = e.target.result;
-          resolve(this.db);
-        };
+        req.onsuccess = (e) => { this.db = e.target.result; resolve(this.db); };
         req.onerror = () => reject(req.error);
       });
     }

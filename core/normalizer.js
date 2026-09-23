@@ -11,9 +11,23 @@
 
   class FieldNormalizer {
     constructor(canonicalSchema = schema) {
-      this.schema = canonicalSchema || {};
-      this.fields = this.schema.CANONICAL_FIELDS || {};
-      this.contextRules = this.schema.SECTION_CONTEXT_RULES || [];
+      // Accept either:
+      //   - a full schema object with CANONICAL_FIELDS / FIELD_DEFINITIONS
+      //   - the raw CANONICAL_FIELDS dict itself (for backward-compat with tests)
+      if (canonicalSchema && (canonicalSchema.CANONICAL_FIELDS || canonicalSchema.FIELD_DEFINITIONS)) {
+        this.schema = canonicalSchema;
+        this.fields = canonicalSchema.CANONICAL_FIELDS || canonicalSchema.FIELD_DEFINITIONS || {};
+        this.contextRules = canonicalSchema.SECTION_CONTEXT_RULES || [];
+      } else if (canonicalSchema && typeof canonicalSchema === 'object' && Object.values(canonicalSchema).some(v => v && v.aliases)) {
+        // Looks like a raw CANONICAL_FIELDS dict — wrap it
+        this.schema = { CANONICAL_FIELDS: canonicalSchema };
+        this.fields = canonicalSchema;
+        this.contextRules = (schema && schema.SECTION_CONTEXT_RULES) || [];
+      } else {
+        this.schema = canonicalSchema || {};
+        this.fields = this.schema.CANONICAL_FIELDS || {};
+        this.contextRules = this.schema.SECTION_CONTEXT_RULES || [];
+      }
     }
 
     /**

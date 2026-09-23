@@ -581,3 +581,153 @@ body {
   border: 1px solid rgba(16, 185, 129, 0.4);
   color: #34d399;
 }
+
+/* === STEPS 3 & 4: AVAILABILITY ENGINE UI + MY INFORMATION TAB === */
+
+/* Summary bar: conflict pill */
+.summary-pill.conflict { border-color: rgba(239, 68, 68, 0.4); }
+.summary-pill.conflict .count { color: #f87171; }
+
+/* Proposal group sections */
+.proposal-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.proposals-stack { display: flex; flex-direction: column; gap: 8px; }
+
+.group-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 6px;
+  font-size: 11.5px; font-weight: 700;
+  letter-spacing: 0.02em; text-transform: uppercase;
+}
+.group-header-count {
+  margin-left: auto; font-size: 11px; font-weight: 700;
+  padding: 1px 7px; border-radius: 9999px;
+  background: rgba(255,255,255,0.08);
+}
+.group-header-ready   { background: rgba(16,185,129,0.12);  color: #34d399; }
+.group-header-review  { background: rgba(245,158,11,0.12);  color: #fbbf24; }
+.group-header-conflict{ background: rgba(239,68,68,0.12);   color: #f87171; }
+.group-header-missing { background: rgba(100,116,139,0.12); color: #94a3b8; }
+
+/* New proposal card variants */
+.proposal-card.conflict  { border-left: 4px solid var(--danger); }
+.proposal-card.ambiguous { border-left: 4px solid #a855f7; }
+
+.badge-conflict  { background: var(--danger-bg); color: #f87171; }
+.badge-ambiguous { background: rgba(168,85,247,0.15); color: #c084fc; }
+
+.provenance-tag { font-size: 10px; font-weight: 500; color: #64748b; margin-top: 2px; }
+
+/* Conflict options list */
+.conflict-options { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.conflict-option {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--bg-input);
+  cursor: pointer; font-size: 11.5px; transition: border-color 0.15s;
+}
+.conflict-option:hover { border-color: #3b82f6; }
+.conflict-option input[type="radio"] { accent-color: #3b82f6; width: 13px; height: 13px; }
+.conflict-option-value  { font-weight: 500; flex: 1; }
+.conflict-option-source { font-size: 10px; color: var(--text-muted); }
+
+/* Missing info card */
+.proposal-card.missing-info { border-left: 4px solid #334155; opacity: 0.7; }
+.missing-hint { font-size: 11px; color: #64748b; font-style: italic; margin-top: 2px; }
+
+/* === MY INFORMATION TAB === */
+
+.info-header {
+  display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;
+}
+.info-header h2 { font-size: 15px; font-weight: 700; }
+
+.info-sections { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
+
+/* Collapsible section */
+.info-section { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); overflow: hidden; }
+.info-section.sensitive-section { border-color: rgba(168,85,247,0.3); }
+
+.section-toggle {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; background: transparent; border: none;
+  color: var(--text-main); cursor: pointer; font-size: 13px;
+  font-weight: 600; text-align: left; transition: background 0.15s;
+}
+.section-toggle:hover { background: rgba(255,255,255,0.04); }
+.section-icon   { font-size: 14px; flex-shrink: 0; }
+.section-label  { flex: 1; font-weight: 600; }
+.section-chevron {
+  font-size: 11px; color: var(--text-muted);
+  transition: transform 0.2s; flex-shrink: 0;
+}
+.section-toggle[aria-expanded="false"] .section-chevron { transform: rotate(-90deg); }
+
+.section-sensitive-badge {
+  font-size: 9.5px; font-weight: 700; color: #c084fc;
+  background: rgba(168,85,247,0.15); border-radius: 3px;
+  padding: 1px 5px; flex-shrink: 0;
+}
+.section-badge {
+  font-size: 10px; background: rgba(37,99,235,0.2); color: #60a5fa;
+  border-radius: 9999px; padding: 1px 8px; font-weight: 600;
+}
+
+.section-body { padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+/* Sensitive fields */
+.sensitive-notice {
+  font-size: 11px; color: #a78bfa;
+  background: rgba(168,85,247,0.08);
+  border-radius: 5px; padding: 6px 10px; margin-bottom: 4px;
+  display: flex; gap: 6px; align-items: flex-start;
+}
+.sensitive-field-row { display: flex; gap: 6px; align-items: center; }
+.sensitive-input {
+  flex: 1; background: var(--bg-input);
+  border: 1px solid rgba(168,85,247,0.4);
+  border-radius: 6px; padding: 7px 10px;
+  color: white; font-size: 12px; font-family: inherit;
+  letter-spacing: 0.1em;
+}
+.sensitive-input:focus { outline: none; border-color: #a855f7; box-shadow: 0 0 0 1px #a855f7; }
+
+.btn-reveal {
+  background: rgba(168,85,247,0.15);
+  border: 1px solid rgba(168,85,247,0.3);
+  border-radius: 5px; color: #c084fc; font-size: 14px;
+  cursor: pointer; padding: 5px 8px; flex-shrink: 0; transition: background 0.15s;
+}
+.btn-reveal:hover { background: rgba(168,85,247,0.25); }
+
+/* Education multi-record */
+.edu-record-card {
+  background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 7px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px;
+}
+.edu-record-header {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  font-size: 12px; font-weight: 700; color: #38bdf8;
+}
+.edu-record-title-input {
+  background: transparent; border: none;
+  border-bottom: 1px solid #334155;
+  color: #38bdf8; font-size: 12px; font-weight: 700;
+  padding: 2px 4px; width: 160px; font-family: inherit;
+}
+.edu-record-title-input:focus { outline: none; border-bottom-color: #3b82f6; }
+.btn-delete-edu {
+  background: transparent; border: none; color: #64748b;
+  cursor: pointer; font-size: 14px; padding: 2px 5px;
+  border-radius: 4px; transition: color 0.15s;
+}
+.btn-delete-edu:hover { color: #ef4444; }
+.edu-add-btn { width: 100%; margin-top: 4px; }
+
+/* Save bar */
+.info-save-bar {
+  background: #111827; border-top: 1px solid var(--border);
+  padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+  margin: 0 -16px -12px -16px; flex-shrink: 0;
+}
