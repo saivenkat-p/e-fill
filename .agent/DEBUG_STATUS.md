@@ -4,23 +4,22 @@ Agent: Debug Subagent
 Role: Known Bug Root Cause & Remediation Engineer
 Status: COMPLETED
 Started: 2026-09-24T21:42:15+05:30
-Last Updated: 2026-09-24T23:25:00+05:30
-Current Task: Remediation of verified bugs (Bugs A, B, C) and browser runtime defects
-Current Step: All fixes implemented, tested with reproduction scripts, and verified against full regression test suite
+Last Updated: 2026-09-24T23:51:30+05:30
+Current Task: Implementation of Approved Product Decisions A, B, and C
+Current Step: All code changes implemented, tested with isolated scripts, and verified against master test runner
 Files Being Investigated:
-- sidepanel/sidepanel.js
+- content/indicator.js
+- core/canonical-schema.js
 - core/information-profile.js
-- core/document-extractor.js
-- core/document-classifier.js
 - core/document-field-map.js
-- content/autofill.js
-- content/upload-handler.js
-- content/field-reader.js
-Tests Running: None (All focused reproduction scripts and 208/208 regression tests passing)
-Latest Finding: 
-- Bug C: Fixed by clearing matching DOM inputs in #info-sections and passing skipDomSync=true in executeFieldDeletion; education record deletion made async and persistent with saveInformationProfile(true).
-- Bug A: Fixed by routing edu_* fields into education records in sidepanel.js and information-profile.js; eliminated duplicate non-canonical field emissions; improved slash notation (475/500), school, and candidate name regexes.
-- Bug B: Fixed by harmonizing EWS_CERT / EWS_CERTIFICATE across modules, normalizing ews_status to 'Yes' to match DOM select options, and supporting word-based Lakh income amounts.
-- Browser Fixes: Fixed select verification (removed selectedIndex >= 0), added 12 missing scripts to dynamic injection list, preserved data-efill-id on rescans, and converted IPC file upload buffers to Base64/DataURL.
-Blockers: None. (3 product decisions awaiting user approval before further work).
-Next Action: Stand by for user feedback on product decisions.
+- core/document-extractor.js
+- core/ocr-engine.js
+- sidepanel/index.html
+- sidepanel/sidepanel.js
+Tests Running: None (All reproduction scripts and regression tests passing)
+Latest Finding:
+- Decision A: Replaced direct OPEN_SIDE_PANEL dispatch with an ambient pill indicator and an interactive shadow DOM guidance tooltip that directs users to the browser toolbar extension icon.
+- Decision B: Registered annual_income in CANONICAL_FIELDS with rich aliases, negative keywords, and sensitive:true; added to _createEmpty(); added legacy migration support in fromJSON; mapped in document-field-map; added input to sidepanel HTML and sidepanel populated cards.
+- Decision C: Upgraded OcrEngine with FlateDecode stream decompression, hex string parsing, lower length rejection threshold, and OnDemandOcrManager architecture with pluggable provider interface.
+Blockers: None.
+Next Action: Stand by for next user assignments.
