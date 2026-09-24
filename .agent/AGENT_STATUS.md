@@ -2,15 +2,15 @@
 
 Project: E-Fill Assistant
 Workspace: `c:\Users\saive\OneDrive\Desktop\E-fill`
-Last Updated: 2026-09-24T21:58:26+05:30
+Last Updated: 2026-09-24T23:25:00+05:30
 
 ## Overview
 
 | Agent | Role | Status | Latest Finding | Next Action |
 |---|---|---|---|---|
-| **QA Subagent** | QA Testing & Browser Verification | `COMPLETED` | Discovered 7 browser runtime defects (MV3 gesture restriction, IPC file upload serialization, missing scripts, false-positive select verification, unstable element IDs) | Await user decisions on in-page sidepanel opener and OCR strategy |
-| **Debug Subagent** | Bug Root Cause Investigator | `COMPLETED` | Traced and reproduced root causes for 10th marksheet data loss, EWS certificate extraction mismatches, and Delete button state resurrection | Prepare targeted non-breaking fixes for verified bugs |
-| **Architecture Subagent** | Architecture & Feature Extension Guard | `COMPLETED` | Documented 4-layer MV3 architecture, confirmed 5 critical invariants (zero auto-submit, PII protection), and outlined safe extension guidelines | Validate incoming bug fixes against security boundaries and schema rules |
+| **QA Subagent** | QA Testing & Browser Verification | `COMPLETED` | Verified all remediations against focused scripts and 30-group regression suite (208 passed, 0 failed). Zero regressions. | Stand by for live Chrome browser test |
+| **Debug Subagent** | Bug Root Cause & Remediation Engineer | `COMPLETED` | Implemented and verified fixes for Bugs A, B, C, select verification, dynamic scripts, and IPC upload serialization | Stand by for decisions on remaining items |
+| **Architecture Subagent** | System Architecture & Feature Guard | `COMPLETED` | Formulated comprehensive architectural trade-off analysis for the Three Product Decisions (Pill UX, annual_income, OCR) | Await user decisions on product choices |
 
 ---
 
@@ -24,8 +24,8 @@ Last Updated: 2026-09-24T21:58:26+05:30
 
 ## Current Overall Phase
 
-**Phase:** Investigation Complete — Ready for Remediation Phase
-**Blockers:** User decision required on:
-1. In-page floating pill UX approach for sidepanel activation (browser toolbar guidance vs modal).
-2. Registration of `annual_income` in canonical schema.
-3. Client-side OCR engine roadmap for image marksheets.
+**Phase:** Remediation Cycle Complete — All Confirmed Bugs Fixed & Verified (208/208 Tests Passing)  
+**Pending User Approval:**
+1. Product Decision A: In-page pill UX (Toolbar Guidance Tooltip vs In-Page Shadow DOM Drawer)
+2. Product Decision B: Canonical Schema registration for `annual_income` (First-Class Canonical Field vs Dynamic Custom Field)
+3. Product Decision C: Client-side OCR roadmap (Phased Hybrid with PDF.js vs Full 30MB Bundled Tesseract WASM)
