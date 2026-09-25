@@ -157,6 +157,19 @@
     }
 
     /**
+     * Get initialized ProfileManager instance for multi-person profile management.
+     */
+    async getProfileManager() {
+      const pmMod = global.EFillProfileManager || (typeof require !== 'undefined' ? require('./profile-manager.js') : null);
+      if (!pmMod) return null;
+      const pm = pmMod.profileManager;
+      if (!pm.initialized) {
+        await pm.init(this);
+      }
+      return pm;
+    }
+
+    /**
      * Migrate legacy flat profile to v2 InformationProfile.
      * Only migrates if the v2 profile doesn't already exist.
      * Returns the new v2 profile data, or null if migration not needed.

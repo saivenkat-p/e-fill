@@ -60,12 +60,17 @@
     }
 
     createProposalForField(field, profile, extraSources, engine) {
-      const { canonicalId, confidence = 0, reason = '', elementId, label, options, type } = field;
+      const canonicalId = field.canonicalId;
+      const confidence = field.confidence !== undefined ? field.confidence : (canonicalId ? 0.9 : 0);
+      const { reason = '', elementId, label, options, type, selector, name, tagName } = field;
 
       // ── UNIDENTIFIED ───────────────────────────────────────────────────────
       if (!canonicalId) {
         return {
           fieldId:         elementId,
+          selector:        selector || '',
+          name:            name || '',
+          tagName:         tagName || '',
           label:           label || 'Unlabeled field',
           type:            type || 'text',
           canonicalId:     null,
@@ -89,8 +94,20 @@
 
         // If unavailable, no value to transform
         if (status === STATUS.UNAVAILABLE) {
+          const rawMap = global.EFillDocumentFieldMap || (typeof require !== 'undefined' ? (() => { try { return require('./document-field-map.js'); } catch(e) { return null; } })() : null);
+          const fieldMap = rawMap?.documentFieldMap || rawMap;
+          const recDoc = (fieldMap && typeof fieldMap.getRecommendedDocument === 'function' && canonicalId)
+            ? fieldMap.getRecommendedDocument(canonicalId)
+            : null;
+          const allPossibleDocs = (fieldMap && typeof fieldMap.getAllPossibleSources === 'function' && canonicalId)
+            ? fieldMap.getAllPossibleSources(canonicalId)
+            : (recDoc?.allPossibleSources || (recDoc ? [recDoc] : []));
+
           return {
             fieldId:         elementId,
+            selector:        selector || '',
+            name:            name || '',
+            tagName:         tagName || '',
             label:           label || canonicalId,
             type:            type || 'text',
             canonicalId,
@@ -103,7 +120,9 @@
             reason:          `No saved information for "${canonicalId}"`,
             approved:        false,
             userEdited:      false,
-            conflicts:       []
+            conflicts:       [],
+            recommendedDoc:  recDoc,
+            allPossibleDocs: allPossibleDocs
           };
         }
 
@@ -111,6 +130,9 @@
         if (status === STATUS.CONFLICT) {
           return {
             fieldId:         elementId,
+            selector:        selector || '',
+            name:            name || '',
+            tagName:         tagName || '',
             label:           label || canonicalId,
             type:            type || 'text',
             canonicalId,
@@ -133,6 +155,9 @@
 
         return {
           fieldId:              elementId,
+          selector:             selector || '',
+          name:                 name || '',
+          tagName:              tagName || '',
           label:                label || canonicalId,
           type:                 type || 'text',
           canonicalId,
@@ -151,23 +176,36 @@
       }
 
       // ── FALLBACK: no engine, use legacy extraction ─────────────────────────
+      const rawMap = global.EFillDocumentFieldMap || (typeof require !== 'undefined' ? (() => { try { return require('./document-field-map.js'); } catch(e) { return null; } })() : null);
+      const fieldMap = rawMap?.documentFieldMap || rawMap;
+      const recDoc = (fieldMap && typeof fieldMap.getRecommendedDocument === 'function' && canonicalId)
+        ? fieldMap.getRecommendedDocument(canonicalId)
+        : null;
+
       const extraction = this._extractFromLegacy(canonicalId, profile);
       if (!extraction || !extraction.value) {
         return {
-          fieldId:       elementId,
-          label:         label || canonicalId,
-          type:          type || 'text',
+          fieldId:         elementId,
+          selector:        selector || '',
+          name:            name || '',
+          tagName:         tagName || '',
+          label:           label || canonicalId,
+          type:            type || 'text',
           canonicalId,
-          proposedValue: '',
-          source:        'User Profile',
-          provenance:    null,
+          proposedValue:   '',
+          source:          'User Profile',
+          provenance:      null,
           provenanceLabel: null,
-          status:        STATUS.UNAVAILABLE,
+          status:          STATUS.UNAVAILABLE,
           confidence,
-          reason:        `No saved value in profile for "${canonicalId}"`,
-          approved:      false,
-          userEdited:    false,
-          conflicts:     []
+          reason:          `No saved value in profile for "${canonicalId}"`,
+          approved:        false,
+          userEdited:      false,
+          conflicts:       [],
+          recommendedDoc:  recDoc,
+          allPossibleDocs: (fieldMap && typeof fieldMap.getAllPossibleSources === 'function' && canonicalId)
+            ? fieldMap.getAllPossibleSources(canonicalId)
+            : (recDoc ? [recDoc] : [])
         };
       }
 
@@ -176,6 +214,9 @@
 
       return {
         fieldId:              elementId,
+        selector:             selector || '',
+        name:                 name || '',
+        tagName:              tagName || '',
         label:                label || canonicalId,
         type:                 type || 'text',
         canonicalId,

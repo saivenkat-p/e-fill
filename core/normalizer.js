@@ -130,7 +130,7 @@
                 bestMatch = canonicalKey;
                 matchReason = `Label starts/ends with alias: "${aliasClean}"`;
               }
-            } else if (label.includes(aliasClean)) {
+            } else if (aliasClean.length <= 5 ? (` ${label} `).includes(` ${aliasClean} `) : label.includes(aliasClean)) {
               const score = 0.85;
               if (score > highestScore) {
                 highestScore = score;

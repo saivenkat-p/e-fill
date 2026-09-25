@@ -114,23 +114,93 @@
           .close-btn:hover {
             color: #cbd5e1;
           }
+          .guidance-tooltip {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 10px);
+            right: 0;
+            width: 280px;
+            background: #0f172a;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px 14px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+            font-size: 12px;
+            line-height: 1.4;
+            animation: efillFadeIn 0.2s ease-out;
+            z-index: 10;
+          }
+          .guidance-tooltip.show {
+            display: block;
+          }
+          .guidance-title {
+            font-weight: 600;
+            color: #60a5fa;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .guidance-text {
+            color: #cbd5e1;
+            margin-bottom: 8px;
+          }
+          .guidance-tip {
+            font-size: 11px;
+            color: #94a3b8;
+            background: #1e293b;
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin-bottom: 8px;
+          }
+          .guidance-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            float: right;
+          }
+          .guidance-btn:hover {
+            background: #1d4ed8;
+          }
+          @keyframes efillFadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
         </style>
+        <div class="guidance-tooltip" id="guidance-tooltip">
+          <div class="guidance-title"><span>⚡</span> Open E-Fill Review Panel</div>
+          <div class="guidance-text">Click the <strong>E-Fill icon (⚡)</strong> in your browser toolbar (top-right) to review fields and autofill safely.</div>
+          <div class="guidance-tip">📌 <strong>Tip:</strong> Click the puzzle icon (🧩) in the toolbar and pin E-Fill for 1-click access.</div>
+          <button class="guidance-btn" id="guidance-got-it">Got it</button>
+        </div>
         <div class="pill">
           <div class="icon-badge">⚡</div>
           <div class="text-content">
             <span class="title">E-Fill Active</span>
             <span class="subtitle">${detectedCount} fields detected</span>
           </div>
-          <button class="action-btn" id="open-btn">Review in Side Panel</button>
+          <button class="action-btn" id="open-btn">Review Fields ↗</button>
           <button class="close-btn" id="close-btn" title="Dismiss">✕</button>
         </div>
       `;
 
       const openBtn = this.shadowRoot.getElementById('open-btn');
-      openBtn.addEventListener('click', () => {
-        if (typeof chrome !== 'undefined' && chrome.runtime) {
-          chrome.runtime.sendMessage({ action: 'OPEN_SIDE_PANEL' });
-        }
+      const tooltip = this.shadowRoot.getElementById('guidance-tooltip');
+      const gotItBtn = this.shadowRoot.getElementById('guidance-got-it');
+
+      openBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tooltip.classList.toggle('show');
+      });
+
+      gotItBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tooltip.classList.remove('show');
       });
 
       const closeBtn = this.shadowRoot.getElementById('close-btn');

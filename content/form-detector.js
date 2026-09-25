@@ -50,14 +50,63 @@
         });
       });
 
+      const uploads = this.scanUploads();
+
       return {
         url: window.location.href,
         title: document.title,
         timestamp: new Date().toISOString(),
         totalFound: results.length,
         mappedCount: results.filter(f => f.canonicalId !== null).length,
-        fields: results
+        fields: results,
+        uploads: uploads
       };
+    }
+
+    /**
+     * Scans document specifically for file upload controls and upload requirements.
+     */
+    scanUploads() {
+      const uploads = [];
+      if (typeof document === 'undefined' || !document.querySelectorAll) return uploads;
+
+      const fileInputs = document.querySelectorAll('input[type="file"]');
+      let index = 0;
+      fileInputs.forEach((el) => {
+        let label = '';
+        if (el.id) {
+          try {
+            const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(el.id) : el.id;
+            const lbl = document.querySelector(`label[for="${escaped}"]`);
+            if (lbl) label = lbl.textContent.trim();
+          } catch (e) {}
+        }
+        if (!label) {
+          const parentLabel = el.closest('label');
+          if (parentLabel) label = parentLabel.textContent.trim();
+        }
+        if (!label && el.getAttribute('aria-label')) {
+          label = el.getAttribute('aria-label');
+        }
+        if (!label && el.name) {
+          label = el.name;
+        }
+
+        const container = el.closest('.form-group, .upload-container, .upload-section, tr, td, div');
+        const contextText = container ? container.textContent.trim() : '';
+
+        uploads.push({
+          elementId: el.id || `file_upload_${index++}`,
+          id: el.id || '',
+          name: el.name || '',
+          selector: el.id ? `#${el.id}` : `input[type="file"]`,
+          accept: el.getAttribute('accept') || '',
+          label: label || 'Upload File',
+          contextText: contextText.slice(0, 300)
+        });
+      });
+
+      return uploads;
     }
 
     /**
@@ -74,7 +123,7 @@
       if (tag !== 'input' && tag !== 'select' && tag !== 'textarea') return false;
 
       // Skip non-fillable input types
-      const ignoredTypes = ['hidden', 'submit', 'button', 'reset', 'image', 'password'];
+      const ignoredTypes = ['hidden', 'submit', 'button', 'reset', 'image', 'password', 'file'];
       if (ignoredTypes.includes(type)) return false;
 
       // Skip search inputs

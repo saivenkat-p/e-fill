@@ -33,17 +33,31 @@
   };
 
   const SENSITIVE_FIELDS = (schema && schema.FIELD_SENSITIVITY && schema.FIELD_SENSITIVITY.SENSITIVE) ||
-    new Set(['aadhaar_number', 'alt_id_number', 'bank_account_number', 'bank_ifsc', 'bank_account_holder', 'bank_name']);
+    new Set(['aadhaar_number', 'alt_id_number', 'bank_account_number', 'bank_ifsc', 'bank_account_holder', 'bank_name', 'annual_income']);
 
   /**
    * Create a single field entry with provenance.
    */
-  function makeFieldEntry(value, provenance, source, sensitive) {
+  function makeFieldEntry(value, provenance, source, sensitive, extraMeta = {}) {
+    const now = new Date().toISOString();
+    const strVal = value !== undefined && value !== null ? String(value) : '';
+    const prov = provenance || PROVENANCE_TYPES.USER_ENTERED;
+
+    let defaultSourceType = 'MANUAL';
+    if (prov === PROVENANCE_TYPES.DOCUMENT_EXTRACTED || prov === PROVENANCE_TYPES.USER_CONFIRMED) {
+      defaultSourceType = 'DOCUMENT';
+    }
+
     return {
-      value: value !== undefined && value !== null ? String(value) : '',
-      provenance: provenance || PROVENANCE_TYPES.USER_ENTERED,
-      source: source || 'User Entry',
-      lastModified: new Date().toISOString(),
+      canonicalField: extraMeta.canonicalField || null,
+      value: strVal,
+      sourceType: extraMeta.sourceType || defaultSourceType,
+      sourceDocumentType: extraMeta.sourceDocumentType || null,
+      provenance: prov,
+      confidence: extraMeta.confidence !== undefined ? extraMeta.confidence : 1.0,
+      lastUpdated: extraMeta.lastUpdated || now,
+      lastModified: extraMeta.lastModified || now,
+      source: source || (prov === PROVENANCE_TYPES.USER_ENTERED ? 'User Entry' : 'Information Profile'),
       sensitive: !!sensitive
     };
   }
@@ -51,11 +65,16 @@
   /**
    * Create an empty field entry.
    */
-  function emptyField(sensitive) {
+  function emptyField(sensitive, canonicalId) {
     return {
+      canonicalField: canonicalId || null,
       value: '',
+      sourceType: null,
+      sourceDocumentType: null,
       provenance: null,
+      confidence: 1.0,
       source: null,
+      lastUpdated: null,
       lastModified: null,
       sensitive: !!sensitive
     };
@@ -114,7 +133,8 @@
         category: {
           category:       emptyField(),
           caste_community: emptyField(),
-          ews_status:     emptyField()
+          ews_status:     emptyField(),
+          annual_income:  emptyField(true)
         },
         education: [],   // Array of education record objects
         employment: {
@@ -134,7 +154,8 @@
           bank_name:           emptyField(true),
           bank_account_number: emptyField(true),
           bank_ifsc:           emptyField(true)
-        }
+        },
+        custom: {} // Dictionary of custom user-added fields
       };
     }
 
@@ -159,51 +180,89 @@
     }
 
     /**
-     * Get a value entry for a canonical field ID.
+     * Get a value entry for a canonical or custom field ID.
      * For education fields, pass the educationRecordId.
      *
-     * @returns {{ value, provenance, source, lastModified, sensitive } | null}
+     * @returns {{ value, provenance, source, lastModified, sensitive, label, category } | null}
      */
     getField(canonicalId, educationRecordId) {
-      if (canonicalId.startsWith('edu_')) {
+      if (!canonicalId) return null;
+
+      // Handle education alias mappings if non-canonical shorthand is queried
+      const eduAliases = {
+        roll_number: 'edu_roll_number',
+        board: 'edu_board',
+        institution: 'edu_institution',
+        passing_year: 'edu_year',
+        percentage: 'edu_percentage'
+      };
+      const effectiveId = eduAliases[canonicalId] || canonicalId;
+
+      if (effectiveId.startsWith('edu_')) {
         if (!educationRecordId) {
           // Return first education record that has this field set
           for (const rec of (this._data.education || [])) {
-            const f = rec.fields && rec.fields[canonicalId];
+            const f = rec.fields && rec.fields[effectiveId];
             if (f && f.value) return f;
           }
           return emptyField();
         }
         const rec = (this._data.education || []).find(r => r.id === educationRecordId);
-        return (rec && rec.fields && rec.fields[canonicalId]) || emptyField();
+        return (rec && rec.fields && rec.fields[effectiveId]) || emptyField();
       }
 
-      // Look through all sections
+      // Look through all standard sections
       for (const section of ['personal', 'identity', 'contact', 'address', 'family', 'category', 'employment', 'additional', 'banking']) {
         const sec = this._data[section];
         if (sec && canonicalId in sec) {
           return sec[canonicalId];
         }
       }
+
+      // Check custom fields
+      if (this._data.custom && this._data.custom[canonicalId]) {
+        return this._data.custom[canonicalId];
+      }
+
       return null;
     }
 
     /**
      * Set a value with provenance.
+     * Automatically routes to the appropriate section based on canonical schema or custom.
      */
-    setField(canonicalId, value, provenance, source, educationRecordId) {
+    setField(canonicalId, value, provenance, source, educationRecordId, category, extraMeta = {}) {
+      if (!canonicalId) return this;
       const isSensitive = SENSITIVE_FIELDS.has(canonicalId);
-      const entry = makeFieldEntry(value, provenance, source, isSensitive);
+      const meta = { canonicalField: canonicalId, ...extraMeta };
+      const entry = makeFieldEntry(value, provenance, source, isSensitive, meta);
 
-      if (canonicalId.startsWith('edu_') && educationRecordId) {
-        const rec = (this._data.education || []).find(r => r.id === educationRecordId);
-        if (rec && rec.fields) {
+      if (canonicalId.startsWith('edu_')) {
+        if (!this._data.education) this._data.education = [];
+        let rec = null;
+        if (educationRecordId) {
+          rec = this._data.education.find(r => r.id === educationRecordId);
+        }
+        if (!rec) {
+          if (this._data.education.length > 0) {
+            rec = this._data.education[0];
+          } else {
+            rec = InformationProfile.createEducationRecord(`edu-${Date.now()}`, '10th / SSC');
+            this._data.education.push(rec);
+          }
+        }
+        if (rec) {
+          if (!rec.fields) rec.fields = {};
           rec.fields[canonicalId] = entry;
+          if (canonicalId === 'edu_qualification' && value) {
+            rec.qualification = value;
+          }
           this._data.lastUpdated = new Date().toISOString();
         }
         return this;
       }
 
+      // 1. Check existing sections
       for (const section of ['personal', 'identity', 'contact', 'address', 'family', 'category', 'employment', 'additional', 'banking']) {
         const sec = this._data[section];
         if (sec && canonicalId in sec) {
@@ -212,7 +271,122 @@
           return this;
         }
       }
+
+      // 2. If canonical schema knows this field category, add to that section
+      const schemaDef = schema && schema.CANONICAL_FIELDS && schema.CANONICAL_FIELDS[canonicalId];
+      const targetSection = category || (schemaDef && schemaDef.category);
+      if (targetSection && targetSection !== 'education' && this._data[targetSection] && !Array.isArray(this._data[targetSection])) {
+        this._data[targetSection][canonicalId] = entry;
+        this._data.lastUpdated = new Date().toISOString();
+        return this;
+      }
+
+      // 3. Fallback to custom fields
+      this.setCustomField(canonicalId, schemaDef?.label || canonicalId, value, targetSection || 'personal', provenance, source);
       return this;
+    }
+
+    /**
+     * Clear a canonical field or custom field value.
+     * For canonical fields, resets value to empty and removes provenance while preserving schema.
+     */
+    clearField(canonicalId, educationRecordId) {
+      if (!canonicalId) return this;
+      const isSensitive = SENSITIVE_FIELDS.has(canonicalId);
+      const entry = emptyField(isSensitive);
+
+      if (canonicalId.startsWith('edu_')) {
+        if (educationRecordId) {
+          const rec = (this._data.education || []).find(r => r.id === educationRecordId);
+          if (rec && rec.fields && rec.fields[canonicalId]) {
+            rec.fields[canonicalId] = entry;
+            this._data.lastUpdated = new Date().toISOString();
+          }
+        } else {
+          for (const rec of (this._data.education || [])) {
+            if (rec.fields && rec.fields[canonicalId]) {
+              rec.fields[canonicalId] = entry;
+            }
+          }
+          this._data.lastUpdated = new Date().toISOString();
+        }
+        return this;
+      }
+
+      // Check standard sections
+      for (const section of ['personal', 'identity', 'contact', 'address', 'family', 'category', 'employment', 'additional', 'banking']) {
+        const sec = this._data[section];
+        if (sec && canonicalId in sec) {
+          sec[canonicalId] = entry;
+          this._data.lastUpdated = new Date().toISOString();
+          return this;
+        }
+      }
+
+      // If custom field, remove it
+      if (this._data.custom && this._data.custom[canonicalId]) {
+        delete this._data.custom[canonicalId];
+        this._data.lastUpdated = new Date().toISOString();
+      }
+
+      return this;
+    }
+
+    /**
+     * Set a custom field with stable id, label, category, value, and provenance.
+     */
+    setCustomField(id, label, value, category, provenance, source) {
+      if (!this._data.custom) this._data.custom = {};
+      const isSensitive = SENSITIVE_FIELDS.has(id);
+      const entry = makeFieldEntry(value, provenance, source, isSensitive);
+      entry.id = id;
+      entry.label = label || id;
+      entry.category = category || 'personal';
+      this._data.custom[id] = entry;
+      this._data.lastUpdated = new Date().toISOString();
+      return this;
+    }
+
+    /**
+     * Get a specific custom field by its stable ID.
+     */
+    getCustomField(id) {
+      if (!this._data.custom || !id) return null;
+      return this._data.custom[id] || null;
+    }
+
+    /**
+     * Update an existing custom field while preserving its stable ID.
+     */
+    updateCustomField(id, updates = {}) {
+      if (!this._data.custom || !this._data.custom[id]) return null;
+      const field = this._data.custom[id];
+      if (updates.label !== undefined) field.label = updates.label;
+      if (updates.value !== undefined) field.value = String(updates.value);
+      if (updates.category !== undefined) field.category = updates.category;
+      if (updates.provenance !== undefined) field.provenance = updates.provenance;
+      if (updates.source !== undefined) field.source = updates.source;
+      field.lastModified = new Date().toISOString();
+      this._data.lastUpdated = new Date().toISOString();
+      return field;
+    }
+
+    /**
+     * Get all custom fields.
+     */
+    getCustomFields() {
+      if (!this._data.custom) return [];
+      return Object.keys(this._data.custom).map(k => this._data.custom[k]);
+    }
+
+    /**
+     * Remove a custom field by its stable ID.
+     */
+    removeCustomField(id) {
+      if (this._data.custom && this._data.custom[id]) {
+        delete this._data.custom[id];
+        this._data.lastUpdated = new Date().toISOString();
+      }
     }
 
     /**
@@ -231,6 +405,130 @@
       const field = this.getField(canonicalId, educationRecordId);
       if (!field || !field.value || field.value.trim() === '') return 'MISSING';
       return 'AVAILABLE';
+    }
+
+    /**
+     * Checks if this profile has any entered or extracted information.
+     * @returns {boolean}
+     */
+    hasInformation() {
+      for (const section of ['personal', 'identity', 'contact', 'address', 'family', 'category', 'employment', 'additional', 'banking']) {
+        const sec = this._data[section];
+        if (sec) {
+          for (const key of Object.keys(sec)) {
+            const entry = sec[key];
+            if (entry && entry.value && String(entry.value).trim()) {
+              return true;
+            }
+          }
+        }
+      }
+      if (this._data.education && this._data.education.length > 0) {
+        for (const rec of this._data.education) {
+          if (rec.fields) {
+            for (const f of Object.values(rec.fields)) {
+              if (f && f.value && String(f.value).trim()) return true;
+            }
+          }
+        }
+      }
+      if (this._data.custom && Object.keys(this._data.custom).length > 0) {
+        for (const c of Object.values(this._data.custom)) {
+          if (c && c.value && String(c.value).trim()) return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * Checks if the profile is empty (no information yet).
+     * @returns {boolean}
+     */
+    isEmpty() {
+      return !this.hasInformation();
+    }
+
+    /**
+     * Returns all populated fields grouped by category.
+     * @returns {Object} { [category]: Array<{ id, label, value, source, provenance, sensitive, lastUpdated }> }
+     */
+    getPopulatedFields() {
+      const result = {};
+      const sections = ['personal', 'identity', 'contact', 'address', 'family', 'category', 'education', 'employment', 'additional', 'banking'];
+
+      for (const sec of sections) {
+        result[sec] = [];
+        if (sec === 'education') {
+          for (const rec of (this._data.education || [])) {
+            if (rec.fields) {
+              for (const [fid, f] of Object.entries(rec.fields)) {
+                if (f && f.value && String(f.value).trim()) {
+                  const schemaDef = schema?.CANONICAL_FIELDS?.[fid];
+                  result[sec].push({
+                    id: fid,
+                    label: schemaDef?.label || fid,
+                    value: f.value,
+                    source: f.source || 'Document Extracted',
+                    sourceType: f.sourceType || 'DOCUMENT',
+                    sourceDocumentType: f.sourceDocumentType || null,
+                    provenance: f.provenance,
+                    sensitive: !!f.sensitive,
+                    lastUpdated: f.lastUpdated,
+                    educationRecordId: rec.id
+                  });
+                }
+              }
+            }
+          }
+        } else {
+          const sObj = this._data[sec];
+          if (sObj) {
+            for (const [fid, f] of Object.entries(sObj)) {
+              if (f && f.value && String(f.value).trim()) {
+                const schemaDef = schema?.CANONICAL_FIELDS?.[fid];
+                result[sec].push({
+                  id: fid,
+                  label: schemaDef?.label || fid,
+                  value: f.value,
+                  source: f.source || 'Information Profile',
+                  sourceType: f.sourceType || 'MANUAL',
+                  sourceDocumentType: f.sourceDocumentType || null,
+                  provenance: f.provenance,
+                  sensitive: !!f.sensitive,
+                  lastUpdated: f.lastUpdated
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Custom fields
+      result.custom = [];
+      if (this._data.custom) {
+        for (const [cid, c] of Object.entries(this._data.custom)) {
+          if (c && c.value && String(c.value).trim()) {
+            result.custom.push({
+              id: cid,
+              label: c.label || cid,
+              value: c.value,
+              source: c.source || 'Custom Field',
+              sourceType: c.sourceType || 'MANUAL',
+              sourceDocumentType: c.sourceDocumentType || null,
+              provenance: c.provenance,
+              sensitive: !!c.sensitive,
+              lastUpdated: c.lastUpdated,
+              category: c.category || 'personal'
+            });
+          }
+        }
+      }
+
+      for (const k of Object.keys(result)) {
+        if (!result[k] || result[k].length === 0) delete result[k];
+      }
+
+      return result;
     }
 
     // ── Education records ─────────────────────────────────────────────────
@@ -271,6 +569,26 @@
     static fromJSON(data) {
       const ip = new InformationProfile(null);
       ip._data = data;
+      // Migration: migrate existing custom['annual_income'] into canonical category.annual_income
+      if (ip._data && ip._data.custom && ip._data.custom.annual_income) {
+        const customIncome = ip._data.custom.annual_income;
+        if (!ip._data.category) ip._data.category = {};
+        if (!ip._data.category.annual_income || !ip._data.category.annual_income.value) {
+          ip._data.category.annual_income = makeFieldEntry(
+            customIncome.value || '',
+            customIncome.provenance || PROVENANCE_TYPES.USER_ENTERED,
+            customIncome.source || 'Migrated from custom',
+            true,
+            {
+              canonicalField: 'annual_income',
+              sourceType: customIncome.sourceType,
+              confidence: customIncome.confidence,
+              lastUpdated: customIncome.lastUpdated
+            }
+          );
+        }
+        delete ip._data.custom.annual_income;
+      }
       return ip;
     }
 
@@ -329,6 +647,7 @@
           category:   pGet('category', 'category'),
           caste:      pGet('category', 'caste_community'),
           ewsStatus:  pGet('category', 'ews_status'),
+          annualIncome: pGet('category', 'annual_income'),
           disabilityStatus: pGet('additional', 'disability_type') ? 'Yes' : 'No',
           disabilityType:   pGet('additional', 'disability_type'),
           disabilityPercentage: pGet('additional', 'disability_percentage')

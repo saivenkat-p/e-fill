@@ -252,6 +252,64 @@
         </div>
       </div>
 
+      <!-- Section 3b: Category & Reservation Details -->
+      <div class="form-card">
+        <div class="section-header">
+          <span>3b. Category & Reservation Details</span>
+        </div>
+        <div class="section-body">
+          <div class="form-group">
+            <label for="category_select">Social Category <span class="required">*</span></label>
+            <select id="category_select" name="social_category">
+              <option value="">-- Select Category --</option>
+              <option value="General">General / UR</option>
+              <option value="EWS">Economically Weaker Section (EWS)</option>
+              <option value="OBC-NCL">OBC (Non-Creamy Layer)</option>
+              <option value="SC">Scheduled Caste (SC)</option>
+              <option value="ST">Scheduled Tribe (ST)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="annual_family_income">Annual Family Income (in INR) <span class="required">*</span></label>
+            <input type="text" id="annual_family_income" name="annual_family_income" placeholder="e.g. 450000">
+          </div>
+
+          <div class="form-group full-width">
+            <label for="caste_cert_no">Document Number / Certificate Ref No</label>
+            <input type="text" id="caste_cert_no" name="document_number" placeholder="Enter certificate reference number">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3c: Class 10 / Matriculation Education Details -->
+      <div class="form-card">
+        <div class="section-header">
+          <span>3c. Educational Qualifications (Class 10 / SSC)</span>
+        </div>
+        <div class="section-body">
+          <div class="form-group">
+            <label for="ssc_roll_no">Class 10 Roll Number / Hall Ticket No <span class="required">*</span></label>
+            <input type="text" id="ssc_roll_no" name="roll_number" placeholder="Class 10 Roll No">
+          </div>
+
+          <div class="form-group">
+            <label for="ssc_board">Board / Council of Examination <span class="required">*</span></label>
+            <input type="text" id="ssc_board" name="board_name" placeholder="CBSE / ICSE / State Board">
+          </div>
+
+          <div class="form-group">
+            <label for="ssc_year">Year of Passing (YYYY) <span class="required">*</span></label>
+            <input type="text" id="ssc_year" name="passing_year" placeholder="e.g. 2018">
+          </div>
+
+          <div class="form-group">
+            <label for="ssc_percentage">Marks Percentage (%) <span class="required">*</span></label>
+            <input type="text" id="ssc_percentage" name="marks_percentage" placeholder="e.g. 95.0">
+          </div>
+        </div>
+      </div>
+
       <!-- Section 4: Address Details -->
       <div class="form-card">
         <div class="section-header">
@@ -319,9 +377,24 @@
 
   <script src="../core/canonical-schema.js"></script>
   <script src="../core/normalizer.js"></script>
+  <script src="../core/app-profiles.js"></script>
+  <script src="../core/page-classifier.js"></script>
+  <script src="../core/information-profile.js"></script>
+  <script src="../core/profile-manager.js"></script>
+  <script src="../core/conflict-engine.js"></script>
+  <script src="../core/file-validator.js"></script>
+  <script src="../core/document-field-map.js"></script>
+  <script src="../core/document-classifier.js"></script>
+  <script src="../core/ocr-engine.js"></script>
+  <script src="../core/document-extractor.js"></script>
+  <script src="../core/document-source-manager.js"></script>
+  <script src="../core/availability-engine.js"></script>
   <script src="../core/source-selector.js"></script>
   <script src="../content/field-reader.js"></script>
   <script src="../content/form-detector.js"></script>
+  <script src="../content/indicator.js"></script>
+  <script src="../content/autofill.js"></script>
+  <script src="../content/content.js"></script>
   <script>
     document.getElementById('btn-run-selftest').addEventListener('click', () => {
       const out = document.getElementById('selftest-output');

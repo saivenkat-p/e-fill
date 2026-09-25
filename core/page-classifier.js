@@ -1,14 +1,19 @@
 /**
  * E-Fill Page Classifier
  * ======================
- * Determines whether the current page URL matches a registered Application Profile.
+ * Classifies the current page to provide context for form scanning.
  *
- * IMPORTANT DESIGN PRINCIPLE:
- *   The question is NOT "is this a bad site?"
- *   The question IS "does this match a known supported government application?"
+ * ARCHITECTURE:
+ *   Application profiles are OPTIONAL CONTEXT, not a scanning gate.
  *
- *   If the answer is NO → do not scan the page at all.
- *   If the answer is YES → proceed with form detection.
+ *   eligible = true  → page is scannable (all non-browser-internal pages)
+ *   eligible = false → page cannot be scanned (only chrome://, edge://, etc.)
+ *
+ *   profile = <matched profile>  → application-specific hints available
+ *   profile = null               → no profile matched; generic form scanning is used
+ *
+ *   A missing application profile NEVER prevents scanning.
+ *   E-Fill can inspect any page that has meaningful form controls.
  *
  * This module is pure and has no side effects.
  * It depends only on EFillAppProfiles (app-profiles.js).
@@ -26,13 +31,13 @@
     }
 
     /**
-     * Classify a URL against all registered application profiles.
+     * Classify a URL and return scanning context.
      *
      * @param {string} url  Full page URL string (window.location.href)
      * @returns {{
-     *   eligible: boolean,
-     *   profile: Object|null,
-     *   reason: string
+     *   eligible: boolean,    // true = page is scannable; false = browser-internal only
+     *   profile: Object|null, // matched application profile, or null if none matched
+     *   reason: string        // human-readable explanation
      * }}
      */
     classify(url) {
@@ -40,7 +45,8 @@
         return { eligible: false, profile: null, reason: 'No URL provided' };
       }
 
-      // Reject chrome-internal and browser-internal pages immediately
+      // Reject browser-internal pages immediately.
+      // Content scripts cannot be injected into these pages.
       if (
         url.startsWith('chrome://') ||
         url.startsWith('chrome-extension://') ||
@@ -62,6 +68,9 @@
         return { eligible: false, profile: null, reason: 'Could not parse page URL' };
       }
 
+      // Try to match an application profile for additional context.
+      // A matched profile provides field hints, known terminology, etc.
+      // Not matching is fine — generic semantic form intelligence will be used.
       for (const profile of this.profiles) {
         if (this.matchesProfile(parsed, profile)) {
           return {
@@ -72,10 +81,12 @@
         }
       }
 
+      // No profile matched — page is still fully scannable.
+      // Generic form detection and canonical field mapping will run.
       return {
-        eligible: false,
+        eligible: true,
         profile: null,
-        reason: 'Page does not match any registered E-Fill application profile'
+        reason: 'No application profile matched — using generic form scanning'
       };
     }
 

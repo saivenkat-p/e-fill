@@ -48,7 +48,8 @@
       'bank_account_number',
       'bank_ifsc',
       'bank_account_holder',
-      'bank_name'
+      'bank_name',
+      'annual_income'
     ]),
     // RESTRICTED fields need special confirmation before autofill
     RESTRICTED: new Set([
@@ -296,7 +297,7 @@
       label: 'State / UT',
       category: 'address',
       aliases: ['state', 'state / ut', 'state/ut', 'province', 'state of domicile'],
-      negativeKeywords: [],
+      negativeKeywords: ['statement', 'statements', 'declaration', 'undertaking', 'status'],
       priority: 10
     },
     country: {
@@ -383,6 +384,20 @@
       aliases: ['ews', 'economically weaker section', 'ews status'],
       negativeKeywords: [],
       priority: 9
+    },
+    annual_income: {
+      id: 'annual_income',
+      label: 'Annual Family Income',
+      category: 'category',
+      aliases: [
+        'annual income', 'family income', 'annual family income', 'gross annual income',
+        'total income', 'income per annum', 'parent annual income', 'annual gross income',
+        'family annual income', 'gross family income', 'total family income', 'family gross income',
+        'income', 'annual household income', 'household income', 'total annual income'
+      ],
+      negativeKeywords: ['tax', 'pan', 'deduction', 'loan', 'salary slip', 'bank account', 'ifsc'],
+      priority: 9,
+      sensitive: true
     },
     disability_type: {
       id: 'disability_type',
@@ -720,6 +735,55 @@
   };
 
   // ─────────────────────────────────────────────────────────────────────────
+  // FIELD RESOLUTION HELPER
+  // ─────────────────────────────────────────────────────────────────────────
+  /**
+   * Resolves a human-entered field name/label to a canonical field definition.
+   * Checks direct ID, normalized key, exact label, and all canonical aliases.
+   *
+   * @param {string} nameOrLabel
+   * @returns {Object|null} CANONICAL_FIELDS definition or null
+   */
+  function resolveField(nameOrLabel) {
+    if (!nameOrLabel || typeof nameOrLabel !== 'string') return null;
+    const clean = nameOrLabel.trim().toLowerCase();
+    if (!clean) return null;
+
+    // 1. Direct canonical ID match
+    if (CANONICAL_FIELDS[clean]) {
+      return CANONICAL_FIELDS[clean];
+    }
+
+    // 2. Normalized key match (e.g. "father-name" -> "father_name", "date of birth" -> "dob")
+    const normalizedKey = clean.replace(/[\s-]+/g, '_');
+    if (CANONICAL_FIELDS[normalizedKey]) {
+      return CANONICAL_FIELDS[normalizedKey];
+    }
+
+    // 3. Exact label match
+    for (const fid in CANONICAL_FIELDS) {
+      const f = CANONICAL_FIELDS[fid];
+      if (f.label && f.label.toLowerCase() === clean) {
+        return f;
+      }
+    }
+
+    // 4. Exact alias match
+    for (const fid in CANONICAL_FIELDS) {
+      const f = CANONICAL_FIELDS[fid];
+      if (Array.isArray(f.aliases)) {
+        for (const alias of f.aliases) {
+          if (alias.toLowerCase() === clean) {
+            return f;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // EXPORTS
   // ─────────────────────────────────────────────────────────────────────────
   const CanonicalSchema = {
@@ -730,6 +794,7 @@
     FIELD_SENSITIVITY,
     PROFILE_CATEGORIES,
     DEFAULT_SYNTHETIC_PROFILE,
+    resolveField,
     // Convenience alias
     FIELD_DEFINITIONS: CANONICAL_FIELDS
   };

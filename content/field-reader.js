@@ -19,7 +19,7 @@
       const type = (el.type || tag).toLowerCase();
 
       // Ensure element has a stable unique ID or data attribute for targeting
-      let elementId = el.id;
+      let elementId = el.id || el.getAttribute('data-efill-id');
       if (!elementId) {
         elementId = el.getAttribute('name') || `efill-field-${index}-${Date.now()}`;
         el.setAttribute('data-efill-id', elementId);

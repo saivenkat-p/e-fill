@@ -1,12 +1,16 @@
 /**
  * E-Fill Content Script Coordinator
  * ==================================
- * Handles page eligibility classification, form scanning (only on eligible pages),
- * in-page badge display, and communication with Side Panel / Service Worker.
+ * Handles page classification, form scanning, in-page badge display,
+ * and communication with the Side Panel / Service Worker.
  *
- * IMPORTANT INVARIANT:
- *   This script NEVER scans form fields on a page that has not been classified
- *   as an eligible supported government application.
+ * ARCHITECTURE:
+ *   Form scanning runs on ANY scannable page (all pages except browser-internal ones).
+ *   Application profiles are optional context — they provide hints when available,
+ *   but their absence never prevents scanning.
+ *
+ *   scannable = false → browser-internal page (chrome://, edge://, etc.)
+ *   scannable = true  → scan the page; use profile hints if a profile matched
  */
 
 (function () {
@@ -38,7 +42,8 @@
 
   /**
    * Classify the current page.
-   * Must be called before any form scanning.
+   * Returns scanning context: whether the page is scannable and whether a
+   * known application profile matched.
    */
   function classifyPage() {
     const classifier = getClassifier();
@@ -58,10 +63,11 @@
 
   /**
    * Run a full page scan.
-   * Returns null (no scan object) if the page is not eligible.
+   * Scans any non-browser-internal page; uses profile hints when available.
+   * Returns a scan result object with fields, profile context, and metadata.
    */
   function executeScan() {
-    // Always re-check eligibility at scan time (URL could have changed in SPA)
+    // Always re-check classification at scan time (URL may have changed in SPA).
     const eligibility = classifyPage();
 
     if (!eligibility.eligible) {
@@ -145,11 +151,11 @@
         }
 
         case 'AUTOFILL_APPROVED': {
-          // Never autofill if the page is not eligible
+          // Never autofill if the page is not scannable (browser-internal pages)
           if (!pageEligibility || !pageEligibility.eligible) {
             sendResponse({
               success: false,
-              error: 'Autofill blocked: page is not a recognized supported application'
+              error: 'Autofill blocked: page is not scannable'
             });
             break;
           }
@@ -161,6 +167,26 @@
           }
           const fillReport = engine.fill(message.approvedProposals || []);
           sendResponse({ success: true, report: fillReport });
+          break;
+        }
+
+        case 'UPLOAD_APPROVED_FILES': {
+          const handler = window.EFillUploadHandler?.uploadHandler;
+          if (!handler) {
+            sendResponse({ success: false, error: 'Upload handler unavailable' });
+            break;
+          }
+          const files = message.files || [];
+          const results = [];
+          for (const item of files) {
+            const targetEl = item.selector ? document.querySelector(item.selector) : (item.elementId ? document.getElementById(item.elementId) : null);
+            if (targetEl) {
+              const fileData = item.dataUrl || item.blob || item.file;
+              const res = handler.attachFile(targetEl, fileData, item.filename);
+              results.push(res);
+            }
+          }
+          sendResponse({ success: true, results });
           break;
         }
 

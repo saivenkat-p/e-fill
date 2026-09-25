@@ -12,14 +12,17 @@
       <div class="logo-icon">⚡</div>
       <div>
         <h1 class="app-title">E-Fill</h1>
-        <p class="app-tagline">Intelligent Government Form Assistant</p>
+        <p class="app-tagline">Intelligent Form Assistant</p>
       </div>
     </div>
     <div class="tab-nav">
       <button class="tab-btn active" id="tab-review-btn">Review &amp; Fill</button>
-      <button class="tab-btn" id="tab-info-btn">My Information</button>
+      <button class="tab-btn" id="tab-info-btn">My Information <span class="tab-notification-badge" id="info-tab-badge" style="display:none;"></span></button>
     </div>
   </header>
+
+  <!-- Hidden top-level file input for document selection from any tab (Review & Fill or My Information) -->
+  <input type="file" id="profile-doc-file-input" style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.json,image/*,application/pdf,text/plain">
 
   <!-- ═══════════════════════════════════════════════════════════════
        TAB 1: Review & Fill
@@ -40,6 +43,23 @@
         ↻ Rescan
       </button>
     </section>
+
+    <!-- Active Application Person Context -->
+    <div class="active-profile-card" id="active-profile-card">
+      <div class="active-profile-details">
+        <span class="active-profile-icon">👤</span>
+        <span class="active-profile-text">Application Person: <strong id="active-profile-name">Sai Venkat</strong></span>
+      </div>
+      <button type="button" class="btn-switch-profile" id="btn-switch-profile" title="Switch person profile">Switch Person</button>
+    </div>
+
+    <!-- Review & Fill Quick Actions Bar -->
+    <div class="review-actions-bar" id="review-actions-bar" style="display: flex; gap: 8px; margin: 8px 16px; align-items: center;">
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-review-add-doc" style="display: flex; align-items: center; gap: 6px; flex: 1;" title="Provide any document to build profile and autofill">
+        <span>📄</span>
+        <span>+ Add Any Document</span>
+      </button>
+    </div>
 
     <!-- Summary Bar (eligible only) -->
     <section class="summary-bar" id="summary-bar" style="display: none;">
@@ -64,11 +84,11 @@
     <!-- Field Proposals Container -->
     <div class="proposals-container" id="proposals-container">
 
-      <!-- Ineligible state -->
+      <!-- Browser-internal page / blocked state -->
       <div class="ineligible-state" id="ineligible-state" style="display: none;">
         <div class="empty-icon">🛡️</div>
-        <h3>No supported application detected</h3>
-        <p>E-Fill only activates on recognized government and official application portals.</p>
+        <h3>E-Fill cannot operate here</h3>
+        <p>This is a browser system page. E-Fill can analyze any regular webpage with forms.</p>
         <p class="ineligible-reason" id="ineligible-reason"></p>
       </div>
 
@@ -120,6 +140,26 @@
           </div>
           <div class="proposals-stack" id="stack-missing"></div>
         </div>
+
+        <!-- Group: Document Requirements -->
+        <div class="proposal-group" id="group-docs" style="display: none;">
+          <div class="group-header group-header-doc">
+            <span class="group-header-icon">📄</span>
+            <span class="group-header-label">Document Requirements</span>
+            <span class="group-header-count" id="group-count-docs">0</span>
+          </div>
+          <div class="proposals-stack" id="stack-docs"></div>
+        </div>
+
+        <!-- Group: Upload Preparation -->
+        <div class="proposal-group" id="group-uploads" style="display: none;">
+          <div class="group-header group-header-upload">
+            <span class="group-header-icon">📤</span>
+            <span class="group-header-label">Application Uploads</span>
+            <span class="group-header-count" id="group-count-uploads">0</span>
+          </div>
+          <div class="proposals-stack" id="stack-uploads"></div>
+        </div>
       </div>
     </div>
 
@@ -143,90 +183,148 @@
   <main class="tab-view" id="view-info">
 
     <div class="info-header">
-      <div>
-        <h2>My Information</h2>
-        <p class="subtitle">Stored locally. Never sent without your review.</p>
+      <div class="profile-selector-container">
+        <div class="profile-dropdown-wrapper">
+          <button type="button" class="profile-dropdown-btn" id="btn-profile-dropdown" title="Select or add information profile">
+            <div class="profile-dropdown-text">
+              <span class="profile-dropdown-label">My Information <span class="profile-dropdown-caret">▼</span></span>
+              <span class="profile-dropdown-name" id="current-profile-display-name">Sai Venkat</span>
+            </div>
+          </button>
+          <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+            <div class="profile-dropdown-title">Information Profiles</div>
+            <div class="profile-dropdown-list" id="profile-dropdown-list">
+              <!-- Dynamic list: Sai Venkat, Brother, Father, Mother, Friend -->
+            </div>
+            <div class="profile-dropdown-divider"></div>
+            <button type="button" class="profile-dropdown-add-btn" id="btn-open-add-person">
+              + Add Person
+            </button>
+          </div>
+        </div>
       </div>
-      <button class="btn btn-secondary btn-sm" id="btn-reset-info">
-        Reset to Sample
-      </button>
+      <div class="info-header-actions">
+        <button type="button" class="btn btn-primary btn-sm" id="btn-add-profile-doc" title="Add document to build profile">
+          + Add Document
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-open-add-info" title="Manually add information">
+          + Add Information
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-reset-info" title="Reset to sample data">
+          Sample
+        </button>
+      </div>
     </div>
 
-    <div class="info-sections" id="info-sections">
+    <!-- ═══════════════════════════════════════════════════════════════
+         PROFILE VIEW CONTAINER (Clean Structured Information Profile)
+    ═══════════════════════════════════════════════════════════════ -->
+    <div id="profile-view-container" class="profile-view-container">
+
+      <!-- 1. EMPTY PROFILE VIEW -->
+      <div id="empty-profile-view" class="empty-profile-view" style="display: none;">
+        <div class="empty-profile-card">
+          <div class="empty-profile-badge-row">
+            <span class="empty-badge">INFORMATION PROFILE</span>
+          </div>
+
+          <div class="empty-person-banner">
+            <span class="empty-person-label">Person:</span>
+            <strong class="empty-person-name" id="empty-person-name">Brother</strong>
+          </div>
+
+          <p class="empty-profile-instruction">
+            No information saved for this person yet.<br>
+            Add a document to automatically populate this profile, or enter information manually.
+          </p>
+
+          <div class="empty-profile-action-box" style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+            <button type="button" class="btn btn-primary" id="btn-empty-add-doc">
+              📄 + Add Document
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-empty-manual-fallback">
+              + Add Information Manually
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. POPULATED PROFILE VIEW: Living Structured Information Profile -->
+      <div id="populated-profile-view" class="populated-profile-view">
+        <div id="populated-sections-container" class="populated-sections-container">
+          <!-- Dynamic categorized cards: Personal Details, Identity, Address, Education, etc. -->
+        </div>
+      </div>
+
+    </div>
+
+    <div class="info-sections" id="info-sections" style="display: none;">
 
       <!-- ── PERSONAL ────────────────────────────────────── -->
       <div class="info-section" data-section="personal">
-        <button class="section-toggle" aria-expanded="true">
+        <div class="section-header">
           <span class="section-icon">👤</span>
           <span class="section-label">Personal Details</span>
-          <span class="section-chevron">▾</span>
-        </button>
+        </div>
         <div class="section-body">
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-full-name">Full Name</label>
-              <input type="text" id="ip-full-name" data-field="full_name" placeholder="As per official documents">
-            </div>
-            <div class="form-group">
-              <label for="ip-dob">Date of Birth</label>
-              <input type="date" id="ip-dob" data-field="dob">
-            </div>
+          <div class="form-group">
+            <label for="ip-full-name">Full Name</label>
+            <input type="text" id="ip-full-name" data-field="full_name" placeholder="As per official documents">
+            <span class="field-source-hint" data-source-for="full_name"></span>
           </div>
-          <div class="form-row three-col">
-            <div class="form-group">
-              <label for="ip-first-name">First Name</label>
-              <input type="text" id="ip-first-name" data-field="first_name">
-            </div>
-            <div class="form-group">
-              <label for="ip-middle-name">Middle Name</label>
-              <input type="text" id="ip-middle-name" data-field="middle_name">
-            </div>
-            <div class="form-group">
-              <label for="ip-last-name">Last Name / Surname</label>
-              <input type="text" id="ip-last-name" data-field="last_name">
-            </div>
+          <div class="form-group">
+            <label for="ip-dob">Date of Birth</label>
+            <input type="date" id="ip-dob" data-field="dob">
+            <span class="field-source-hint" data-source-for="dob"></span>
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-gender">Gender</label>
-              <select id="ip-gender" data-field="gender">
-                <option value="">-- Select --</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Transgender">Transgender</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="ip-nationality">Nationality</label>
-              <input type="text" id="ip-nationality" data-field="nationality" placeholder="Indian">
-            </div>
+          <div class="form-group">
+            <label for="ip-first-name">First Name</label>
+            <input type="text" id="ip-first-name" data-field="first_name">
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-marital-status">Marital Status</label>
-              <select id="ip-marital-status" data-field="marital_status">
-                <option value="">-- Select --</option>
-                <option value="Single">Single / Unmarried</option>
-                <option value="Married">Married</option>
-                <option value="Divorced">Divorced</option>
-                <option value="Widowed">Widowed</option>
-              </select>
-            </div>
+          <div class="form-group">
+            <label for="ip-middle-name">Middle Name</label>
+            <input type="text" id="ip-middle-name" data-field="middle_name">
+          </div>
+          <div class="form-group">
+            <label for="ip-last-name">Last Name / Surname</label>
+            <input type="text" id="ip-last-name" data-field="last_name">
+          </div>
+          <div class="form-group">
+            <label for="ip-gender">Gender</label>
+            <select id="ip-gender" data-field="gender">
+              <option value="">-- Select --</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Transgender">Transgender</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ip-nationality">Nationality</label>
+            <input type="text" id="ip-nationality" data-field="nationality" placeholder="Indian">
+          </div>
+          <div class="form-group">
+            <label for="ip-marital-status">Marital Status</label>
+            <select id="ip-marital-status" data-field="marital_status">
+              <option value="">-- Select --</option>
+              <option value="Single">Single / Unmarried</option>
+              <option value="Married">Married</option>
+              <option value="Divorced">Divorced</option>
+              <option value="Widowed">Widowed</option>
+            </select>
           </div>
         </div>
       </div>
 
       <!-- ── IDENTITY ────────────────────────────────────── -->
       <div class="info-section sensitive-section" data-section="identity">
-        <button class="section-toggle" aria-expanded="false">
+        <div class="section-header">
           <span class="section-icon">🪪</span>
           <span class="section-label">Identity Documents</span>
           <span class="section-sensitive-badge">🔒 Sensitive</span>
-          <span class="section-chevron">▾</span>
-        </button>
-        <div class="section-body" style="display: none;">
+        </div>
+        <div class="section-body">
           <div class="sensitive-notice">
-            <span>🔒</span> These fields are masked and will only be used with your explicit confirmation.
+            <span>🔒</span> Masked for privacy. Used only with your explicit confirmation.
           </div>
           <div class="form-group">
             <label for="ip-aadhaar">Aadhaar Number</label>
@@ -235,23 +333,21 @@
               <button type="button" class="btn-reveal" data-target="ip-aadhaar" title="Show / hide">👁</button>
             </div>
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-alt-id-type">ID Document Type</label>
-              <select id="ip-alt-id-type" data-field="alt_id_type">
-                <option value="">-- Select --</option>
-                <option value="PAN">PAN Card</option>
-                <option value="Passport">Passport</option>
-                <option value="Voter ID">Voter ID</option>
-                <option value="Driving License">Driving License</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="ip-alt-id-num">Document Number</label>
-              <div class="sensitive-field-row">
-                <input type="password" id="ip-alt-id-num" data-field="alt_id_number" placeholder="••••••••" class="sensitive-input">
-                <button type="button" class="btn-reveal" data-target="ip-alt-id-num" title="Show / hide">👁</button>
-              </div>
+          <div class="form-group">
+            <label for="ip-alt-id-type">Alternative ID Type</label>
+            <select id="ip-alt-id-type" data-field="alt_id_type">
+              <option value="">-- Select --</option>
+              <option value="PAN">PAN Card</option>
+              <option value="Passport">Passport</option>
+              <option value="Voter ID">Voter ID</option>
+              <option value="Driving License">Driving License</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ip-alt-id-num">Alternative ID Number</label>
+            <div class="sensitive-field-row">
+              <input type="password" id="ip-alt-id-num" data-field="alt_id_number" placeholder="••••••••" class="sensitive-input">
+              <button type="button" class="btn-reveal" data-target="ip-alt-id-num" title="Show / hide">👁</button>
             </div>
           </div>
         </div>
@@ -259,172 +355,151 @@
 
       <!-- ── CONTACT ─────────────────────────────────────── -->
       <div class="info-section" data-section="contact">
-        <button class="section-toggle" aria-expanded="true">
+        <div class="section-header">
           <span class="section-icon">📱</span>
           <span class="section-label">Contact Information</span>
-          <span class="section-chevron">▾</span>
-        </button>
+        </div>
         <div class="section-body">
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-phone">Primary Mobile</label>
-              <input type="tel" id="ip-phone" data-field="primary_phone" maxlength="10" placeholder="10-digit mobile">
-            </div>
-            <div class="form-group">
-              <label for="ip-email">Email Address</label>
-              <input type="email" id="ip-email" data-field="email" placeholder="your@email.com">
-            </div>
+          <div class="form-group">
+            <label for="ip-phone">Primary Mobile Number</label>
+            <input type="tel" id="ip-phone" data-field="primary_phone" maxlength="10" placeholder="10-digit mobile">
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-phone2">Alternate Mobile</label>
-              <input type="tel" id="ip-phone2" data-field="secondary_phone" maxlength="10">
-            </div>
-            <div class="form-group">
-              <label for="ip-email2">Alternate Email</label>
-              <input type="email" id="ip-email2" data-field="secondary_email">
-            </div>
+          <div class="form-group">
+            <label for="ip-email">Email Address</label>
+            <input type="email" id="ip-email" data-field="email" placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label for="ip-phone2">Alternate Mobile</label>
+            <input type="tel" id="ip-phone2" data-field="secondary_phone" maxlength="10">
+          </div>
+          <div class="form-group">
+            <label for="ip-email2">Alternate Email</label>
+            <input type="email" id="ip-email2" data-field="secondary_email">
           </div>
         </div>
       </div>
 
       <!-- ── ADDRESS ─────────────────────────────────────── -->
       <div class="info-section" data-section="address">
-        <button class="section-toggle" aria-expanded="false">
+        <div class="section-header">
           <span class="section-icon">🏠</span>
           <span class="section-label">Address</span>
-          <span class="section-chevron">▾</span>
-        </button>
-        <div class="section-body" style="display: none;">
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-house">House / Door Number</label>
-              <input type="text" id="ip-house" data-field="house_number" placeholder="Plot No / Flat No">
-            </div>
-            <div class="form-group">
-              <label for="ip-street">Street / Colony / Area</label>
-              <input type="text" id="ip-street" data-field="street">
-            </div>
+        </div>
+        <div class="section-body">
+          <div class="form-group">
+            <label for="ip-house">House / Flat / Door Number</label>
+            <input type="text" id="ip-house" data-field="house_number" placeholder="Plot No / Flat No">
+          </div>
+          <div class="form-group">
+            <label for="ip-street">Street / Road / Colony</label>
+            <input type="text" id="ip-street" data-field="street">
           </div>
           <div class="form-group">
             <label for="ip-address-line">Full Address Line</label>
             <textarea id="ip-address-line" data-field="address_line" rows="2" placeholder="House No, Street, Area"></textarea>
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-village">Village / Town</label>
-              <input type="text" id="ip-village" data-field="village">
-            </div>
-            <div class="form-group">
-              <label for="ip-mandal">Mandal / Tehsil / Taluk</label>
-              <input type="text" id="ip-mandal" data-field="mandal">
-            </div>
+          <div class="form-group">
+            <label for="ip-village">Village / Town / Locality</label>
+            <input type="text" id="ip-village" data-field="village">
           </div>
-          <div class="form-row three-col">
-            <div class="form-group">
-              <label for="ip-district">District</label>
-              <input type="text" id="ip-district" data-field="district">
-            </div>
-            <div class="form-group">
-              <label for="ip-state">State / UT</label>
-              <input type="text" id="ip-state" data-field="state">
-            </div>
-            <div class="form-group">
-              <label for="ip-pincode">PIN Code</label>
-              <input type="text" id="ip-pincode" data-field="pincode" maxlength="6">
-            </div>
+          <div class="form-group">
+            <label for="ip-mandal">Mandal / Tehsil / Taluk</label>
+            <input type="text" id="ip-mandal" data-field="mandal">
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-city">City</label>
-              <input type="text" id="ip-city" data-field="city">
-            </div>
-            <div class="form-group">
-              <label for="ip-country">Country</label>
-              <input type="text" id="ip-country" data-field="country" placeholder="India">
-            </div>
+          <div class="form-group">
+            <label for="ip-district">District</label>
+            <input type="text" id="ip-district" data-field="district">
+          </div>
+          <div class="form-group">
+            <label for="ip-state">State / UT</label>
+            <input type="text" id="ip-state" data-field="state">
+          </div>
+          <div class="form-group">
+            <label for="ip-pincode">PIN Code</label>
+            <input type="text" id="ip-pincode" data-field="pincode" maxlength="6">
+          </div>
+          <div class="form-group">
+            <label for="ip-city">City</label>
+            <input type="text" id="ip-city" data-field="city">
+          </div>
+          <div class="form-group">
+            <label for="ip-country">Country</label>
+            <input type="text" id="ip-country" data-field="country" placeholder="India">
           </div>
         </div>
       </div>
 
       <!-- ── FAMILY ──────────────────────────────────────── -->
       <div class="info-section" data-section="family">
-        <button class="section-toggle" aria-expanded="false">
+        <div class="section-header">
           <span class="section-icon">👨‍👩‍👦</span>
           <span class="section-label">Family Details</span>
-          <span class="section-chevron">▾</span>
-        </button>
-        <div class="section-body" style="display: none;">
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-father">Father's Name</label>
-              <input type="text" id="ip-father" data-field="father_name">
-            </div>
-            <div class="form-group">
-              <label for="ip-mother">Mother's Name</label>
-              <input type="text" id="ip-mother" data-field="mother_name">
-            </div>
+        </div>
+        <div class="section-body">
+          <div class="form-group">
+            <label for="ip-father">Father's Name</label>
+            <input type="text" id="ip-father" data-field="father_name">
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-guardian">Guardian's Name</label>
-              <input type="text" id="ip-guardian" data-field="guardian_name">
-            </div>
-            <div class="form-group">
-              <label for="ip-spouse">Spouse's Name</label>
-              <input type="text" id="ip-spouse" data-field="spouse_name">
-            </div>
+          <div class="form-group">
+            <label for="ip-mother">Mother's Name</label>
+            <input type="text" id="ip-mother" data-field="mother_name">
+          </div>
+          <div class="form-group">
+            <label for="ip-guardian">Guardian's Name</label>
+            <input type="text" id="ip-guardian" data-field="guardian_name">
+          </div>
+          <div class="form-group">
+            <label for="ip-spouse">Spouse's Name</label>
+            <input type="text" id="ip-spouse" data-field="spouse_name">
           </div>
         </div>
       </div>
 
       <!-- ── CATEGORY / RESERVATION ─────────────────────── -->
       <div class="info-section" data-section="category">
-        <button class="section-toggle" aria-expanded="false">
+        <div class="section-header">
           <span class="section-icon">📋</span>
           <span class="section-label">Category / Reservation</span>
-          <span class="section-chevron">▾</span>
-        </button>
-        <div class="section-body" style="display: none;">
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-category">Category</label>
-              <select id="ip-category" data-field="category">
-                <option value="">-- Select --</option>
-                <option value="General">General / UR</option>
-                <option value="OBC">OBC</option>
-                <option value="SC">SC</option>
-                <option value="ST">ST</option>
-                <option value="EWS">EWS</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="ip-caste">Caste / Community</label>
-              <input type="text" id="ip-caste" data-field="caste_community">
-            </div>
+        </div>
+        <div class="section-body">
+          <div class="form-group">
+            <label for="ip-category">Category</label>
+            <select id="ip-category" data-field="category">
+              <option value="">-- Select --</option>
+              <option value="General">General / UR</option>
+              <option value="OBC">OBC</option>
+              <option value="SC">SC</option>
+              <option value="ST">ST</option>
+              <option value="EWS">EWS</option>
+            </select>
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-ews">EWS Status</label>
-              <select id="ip-ews" data-field="ews_status">
-                <option value="">-- Select --</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
+          <div class="form-group">
+            <label for="ip-caste">Caste / Community</label>
+            <input type="text" id="ip-caste" data-field="caste_community">
+          </div>
+          <div class="form-group">
+            <label for="ip-ews">EWS Status</label>
+            <select id="ip-ews" data-field="ews_status">
+              <option value="">-- Select --</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ip-income">Annual Family Income (₹)</label>
+            <input type="text" id="ip-income" data-field="annual_income" placeholder="e.g. 450000">
           </div>
         </div>
       </div>
 
       <!-- ── EDUCATION (multi-record) ────────────────────── -->
       <div class="info-section" data-section="education">
-        <button class="section-toggle" aria-expanded="false">
+        <div class="section-header">
           <span class="section-icon">🎓</span>
           <span class="section-label">Education</span>
           <span class="section-badge" id="edu-count-badge">0 records</span>
-          <span class="section-chevron">▾</span>
-        </button>
-        <div class="section-body" style="display: none;">
+        </div>
+        <div class="section-body">
           <div id="edu-records-container">
             <!-- Education record cards rendered by JS -->
           </div>
@@ -436,72 +511,62 @@
 
       <!-- ── EMPLOYMENT ──────────────────────────────────── -->
       <div class="info-section" data-section="employment">
-        <button class="section-toggle" aria-expanded="false">
+        <div class="section-header">
           <span class="section-icon">💼</span>
           <span class="section-label">Employment</span>
-          <span class="section-chevron">▾</span>
-        </button>
-        <div class="section-body" style="display: none;">
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-emp-status">Employment Status</label>
-              <select id="ip-emp-status" data-field="employment_status">
-                <option value="">-- Select --</option>
-                <option value="Employed">Employed</option>
-                <option value="Unemployed">Unemployed</option>
-                <option value="Self-Employed">Self-Employed</option>
-                <option value="Student">Student</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="ip-employer">Employer / Organization</label>
-              <input type="text" id="ip-employer" data-field="employer">
-            </div>
+        </div>
+        <div class="section-body">
+          <div class="form-group">
+            <label for="ip-emp-status">Employment Status</label>
+            <select id="ip-emp-status" data-field="employment_status">
+              <option value="">-- Select --</option>
+              <option value="Employed">Employed</option>
+              <option value="Unemployed">Unemployed</option>
+              <option value="Self-Employed">Self-Employed</option>
+              <option value="Student">Student</option>
+            </select>
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-designation">Designation / Post</label>
-              <input type="text" id="ip-designation" data-field="designation">
-            </div>
-            <div class="form-group">
-              <label for="ip-exp">Years of Experience</label>
-              <input type="number" id="ip-exp" data-field="years_of_experience" min="0" max="50">
-            </div>
+          <div class="form-group">
+            <label for="ip-employer">Employer / Organization</label>
+            <input type="text" id="ip-employer" data-field="employer">
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-govt-emp">Government Employee</label>
-              <select id="ip-govt-emp" data-field="govt_employee_status">
-                <option value="">-- Select --</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
+          <div class="form-group">
+            <label for="ip-designation">Designation / Post</label>
+            <input type="text" id="ip-designation" data-field="designation">
+          </div>
+          <div class="form-group">
+            <label for="ip-exp">Years of Experience</label>
+            <input type="number" id="ip-exp" data-field="years_of_experience" min="0" max="50">
+          </div>
+          <div class="form-group">
+            <label for="ip-govt-emp">Government Employee</label>
+            <select id="ip-govt-emp" data-field="govt_employee_status">
+              <option value="">-- Select --</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
           </div>
         </div>
       </div>
 
       <!-- ── ADDITIONAL ──────────────────────────────────── -->
       <div class="info-section" data-section="additional">
-        <button class="section-toggle" aria-expanded="false">
+        <div class="section-header">
           <span class="section-icon">📎</span>
           <span class="section-label">Additional Information</span>
-          <span class="section-chevron">▾</span>
-        </button>
-        <div class="section-body" style="display: none;">
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-ex-service">Ex-Serviceman</label>
-              <select id="ip-ex-service" data-field="ex_serviceman_status">
-                <option value="">-- Select --</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="ip-disability">Disability Type (if any)</label>
-              <input type="text" id="ip-disability" data-field="disability_type" placeholder="e.g. Orthopaedic">
-            </div>
+        </div>
+        <div class="section-body">
+          <div class="form-group">
+            <label for="ip-ex-service">Ex-Serviceman</label>
+            <select id="ip-ex-service" data-field="ex_serviceman_status">
+              <option value="">-- Select --</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ip-disability">Disability Type (if any)</label>
+            <input type="text" id="ip-disability" data-field="disability_type" placeholder="e.g. Orthopaedic">
           </div>
           <div class="form-group">
             <label for="ip-disability-pct">Disability Percentage</label>
@@ -512,25 +577,22 @@
 
       <!-- ── BANKING (sensitive) ─────────────────────────── -->
       <div class="info-section sensitive-section" data-section="banking">
-        <button class="section-toggle" aria-expanded="false">
+        <div class="section-header">
           <span class="section-icon">🏦</span>
           <span class="section-label">Banking Details</span>
           <span class="section-sensitive-badge">🔒 Sensitive</span>
-          <span class="section-chevron">▾</span>
-        </button>
-        <div class="section-body" style="display: none;">
+        </div>
+        <div class="section-body">
           <div class="sensitive-notice">
-            <span>🔒</span> Bank details are masked and will never be autofilled without your explicit approval per field.
+            <span>🔒</span> Bank details are masked and will never be autofilled without explicit approval per field.
           </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="ip-bank-name">Bank Name</label>
-              <input type="text" id="ip-bank-name" data-field="bank_name" placeholder="e.g. State Bank of India">
-            </div>
-            <div class="form-group">
-              <label for="ip-bank-holder">Account Holder Name</label>
-              <input type="text" id="ip-bank-holder" data-field="bank_account_holder">
-            </div>
+          <div class="form-group">
+            <label for="ip-bank-name">Bank Name</label>
+            <input type="text" id="ip-bank-name" data-field="bank_name" placeholder="e.g. State Bank of India">
+          </div>
+          <div class="form-group">
+            <label for="ip-bank-holder">Account Holder Name</label>
+            <input type="text" id="ip-bank-holder" data-field="bank_account_holder">
           </div>
           <div class="form-group">
             <label for="ip-account-num">Account Number</label>
@@ -549,6 +611,18 @@
         </div>
       </div>
 
+      <!-- ── CUSTOM FIELDS ───────────────────────────────── -->
+      <div class="info-section" data-section="custom" id="section-custom" style="display: none;">
+        <div class="section-header">
+          <span class="section-icon">🏷️</span>
+          <span class="section-label">Custom Information</span>
+          <span class="section-badge" id="custom-count-badge">0</span>
+        </div>
+        <div class="section-body" id="custom-fields-container">
+          <!-- Dynamic custom fields rendered by JS -->
+        </div>
+      </div>
+
     </div><!-- /info-sections -->
 
     <!-- Save bar -->
@@ -561,10 +635,338 @@
 
   </main>
 
-  <!-- Scripts load order: schema → storage → profile → availability → source-selector → app-profiles → sidepanel -->
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: + Add / Edit Information
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-add-info" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-field-title">+ Add Information</h3>
+        <button type="button" class="btn-modal-close" id="btn-modal-close-add-info" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-custom-id" value="">
+        <div class="form-group">
+          <label for="add-field-name">Field Name</label>
+          <input type="text" id="add-field-name" placeholder="e.g. Surname, Driving License, Alt Mobile..." autocomplete="off">
+          <span class="field-resolve-hint" id="add-field-hint"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="add-field-category">Category</label>
+          <select id="add-field-category">
+            <option value="personal">👤 Personal Details</option>
+            <option value="identity">🪪 Identity Documents</option>
+            <option value="contact">📱 Contact Information</option>
+            <option value="address">🏠 Address</option>
+            <option value="family">👨‍👩‍👦 Family Details</option>
+            <option value="category">📋 Category / Reservation</option>
+            <option value="education">🎓 Education</option>
+            <option value="employment">💼 Employment</option>
+            <option value="additional">📎 Additional Information</option>
+            <option value="banking">🏦 Banking Details</option>
+            <option value="custom">🏷️ Custom Information</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="add-field-value">Value</label>
+          <input type="text" id="add-field-value" placeholder="Enter value" autocomplete="off">
+        </div>
+
+        <div class="duplicate-warning" id="add-duplicate-warning" style="display: none;">
+          <div class="dup-icon">⚠️</div>
+          <div class="dup-content">
+            <p class="dup-title">Field already exists</p>
+            <p class="dup-detail" id="add-duplicate-detail"></p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-add-info">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-submit-add-info">Add Information</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: Delete Confirmation
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-delete-confirm" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Delete Information?</h3>
+        <button type="button" class="btn-modal-close" id="btn-modal-close-delete" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="del-confirm-box">
+          <div class="del-confirm-row">
+            <span class="del-confirm-label">Field:</span>
+            <span class="del-confirm-val" id="del-field-name">Surname</span>
+          </div>
+          <div class="del-confirm-row">
+            <span class="del-confirm-label">Value:</span>
+            <span class="del-confirm-val" id="del-field-val">VENKAT</span>
+          </div>
+        </div>
+        <p class="del-confirm-note">This will remove this information from your saved profile.</p>
+
+        <div class="active-reference-warning" id="del-ref-warning" style="display: none;">
+          <div class="del-ref-icon">⚠️</div>
+          <div class="del-ref-content">
+            <p class="del-ref-title">Active Form Reference</p>
+            <p class="del-ref-detail" id="del-ref-detail">This information is currently used by the active form.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-delete">Cancel</button>
+        <button type="button" class="btn btn-danger" id="btn-confirm-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: + Add Person
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-add-person" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>+ Create Information Profile</h3>
+        <button type="button" class="btn-modal-close" id="btn-modal-close-add-person" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-instruction">Create an independent information profile for another person.</p>
+        <div class="form-group">
+          <label for="add-person-name">Profile Name / Person's Name</label>
+          <input type="text" id="add-person-name" placeholder="e.g. Brother, Father, Rahul..." autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="add-person-rel">Relationship</label>
+          <select id="add-person-rel">
+            <option value="Self">Self</option>
+            <option value="Brother" selected>Brother</option>
+            <option value="Father">Father</option>
+            <option value="Mother">Mother</option>
+            <option value="Sister">Sister</option>
+            <option value="Spouse">Spouse</option>
+            <option value="Friend">Friend</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-add-person">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-submit-add-person">Create Person Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: New Person / Different Person Detected
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-new-person-detected" style="display: none;">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div class="modal-title-with-badge">
+          <span class="warning-badge">⚠️ DIFFERENT PERSON DETECTED</span>
+          <h3>Document From Another Person</h3>
+        </div>
+        <button type="button" class="btn-modal-close" id="btn-modal-close-new-person" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-notice-banner">This document appears to contain information for another person, not the currently selected profile.</p>
+        <div class="person-compare-grid">
+          <div class="person-compare-col">
+            <span class="col-title">Currently Selected Profile</span>
+            <div class="person-card" id="cur-person-card">
+              <strong id="cur-person-name">Sai Venkat</strong>
+              <span id="cur-person-details">sai@gmail.com</span>
+            </div>
+          </div>
+          <div class="person-compare-col highlight">
+            <span class="col-title">Document Extracted Person</span>
+            <div class="person-card highlight" id="ext-person-card">
+              <strong id="ext-person-name">Pendyala Rahul</strong>
+              <div id="ext-person-fields" class="ext-person-fields"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-section-title">Where does this information belong?</div>
+      </div>
+      <div class="modal-footer modal-footer-multi">
+        <button type="button" class="btn btn-secondary" id="btn-use-once-doc">Use Once</button>
+        <button type="button" class="btn btn-secondary" id="btn-add-to-existing-profile">Add to Existing Profile</button>
+        <button type="button" class="btn btn-primary" id="btn-create-new-person-from-doc">Create New Person</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: Conflict Detected
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-conflict-detected" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-with-badge">
+          <span class="conflict-badge">⚡ CONFLICT DETECTED</span>
+          <h3>Conflicting Information</h3>
+        </div>
+        <button type="button" class="btn-modal-close" id="btn-modal-close-conflict" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="del-confirm-note" id="conflict-field-title">Field: Mobile Number</p>
+        <div class="del-confirm-box">
+          <div class="del-confirm-row">
+            <span class="del-confirm-label">Existing Profile:</span>
+            <span class="del-confirm-val" id="conflict-existing-val">9000000000</span>
+          </div>
+          <div class="del-confirm-row">
+            <span class="del-confirm-label">Document Value:</span>
+            <span class="del-confirm-val highlight" id="conflict-doc-val">9123456789</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer modal-footer-multi">
+        <button type="button" class="btn btn-secondary" id="btn-conflict-keep">Keep Existing</button>
+        <button type="button" class="btn btn-primary" id="btn-conflict-use-doc">Use Document</button>
+        <button type="button" class="btn btn-secondary" id="btn-conflict-edit">Edit</button>
+        <button type="button" class="btn btn-outline" id="btn-conflict-use-once">Use Once</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: Upload Preparation Preview
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-upload-preview" style="display: none;">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div class="modal-title-with-badge">
+          <span class="ready-badge" id="preview-status-badge">READY</span>
+          <h3>Upload File Preview</h3>
+        </div>
+        <button type="button" class="btn-modal-close" id="btn-modal-close-preview" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="preview-comparison-grid">
+          <div class="preview-col">
+            <span class="col-title">Original File</span>
+            <div class="preview-meta-box" id="preview-original-meta">
+              <p>Name: <span id="prev-orig-name">photo_original.jpg</span></p>
+              <p>Dimensions: <span id="prev-orig-dims">4000 × 6000</span></p>
+              <p>Size: <span id="prev-orig-size">2.8 MB</span></p>
+            </div>
+          </div>
+          <div class="preview-col highlight">
+            <span class="col-title">Prepared For Application</span>
+            <div class="preview-meta-box highlight" id="preview-prepared-meta">
+              <p>Name: <span id="prev-prep-name">photo_efill.jpg</span></p>
+              <p>Dimensions: <span id="prev-prep-dims">300 × 400</span></p>
+              <p>Size: <span id="prev-prep-size">82 KB</span></p>
+              <p>Requirements: <span id="prev-prep-reqs">JPG, 20 KB–100 KB</span></p>
+            </div>
+          </div>
+        </div>
+        <div class="preview-image-container" id="preview-image-container" style="display: none;">
+          <img id="preview-img-element" alt="Prepared file preview" class="prepared-preview-img">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-use-original-file">Use Original</button>
+        <button type="button" class="btn btn-primary" id="btn-confirm-use-prepared">Use Prepared File</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: Document Processed (Review Before Profile Save)
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-document-processed" style="display: none;">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div class="modal-title-with-badge">
+          <span class="ready-badge">✓ DOCUMENT PROCESSED</span>
+          <h3 id="doc-processed-title">Document: Aadhaar</h3>
+        </div>
+        <button type="button" class="btn-modal-close" id="btn-modal-close-doc-processed" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-instruction" id="doc-processed-banner">Review information found in this document before saving to profile.</p>
+
+        <div class="del-confirm-box" style="margin-bottom: 12px;">
+          <div class="del-confirm-row">
+            <span class="del-confirm-label">Target Person:</span>
+            <strong class="del-confirm-val" id="doc-processed-target-name">Brother</strong>
+          </div>
+          <div class="del-confirm-row">
+            <span class="del-confirm-label">Document:</span>
+            <span class="del-confirm-val" id="doc-processed-type-label">Aadhaar Card</span>
+          </div>
+        </div>
+
+        <div class="processed-group-title">Information found:</div>
+        <div id="doc-processed-found-container" class="doc-processed-container">
+          <!-- Dynamic categorized groups: Personal, Identity, Address, etc. -->
+        </div>
+
+        <div class="processed-diff-box">
+          <div class="diff-section">
+            <span class="diff-section-label text-success">New information:</span>
+            <ul id="doc-processed-new-list" class="diff-list new-items"></ul>
+          </div>
+          <div class="diff-section">
+            <span class="diff-section-label text-muted">Existing information:</span>
+            <ul id="doc-processed-existing-list" class="diff-list existing-items"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-doc-processed">Cancel</button>
+        <button type="button" class="btn btn-outline" id="btn-doc-use-once" style="border: 1px solid var(--border); background: var(--bg-card); color: var(--text-color);">Use Once (This Form Only)</button>
+        <button type="button" class="btn btn-primary" id="btn-save-doc-approved">Save &amp; Autofill Application</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: Quick Edit Field
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-edit-field" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="edit-field-title">Edit Information</h3>
+        <button type="button" class="btn-modal-close" id="btn-modal-close-edit-field" title="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label id="edit-field-label">Field</label>
+          <input type="text" id="edit-field-value-input" class="form-control" autocomplete="off">
+          <span class="field-source-hint" id="edit-field-provenance-hint" style="display:block;">Will be saved with USER_EDITED provenance</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-edit-field">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-save-edit-field">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts load order -->
   <script src="../core/canonical-schema.js"></script>
   <script src="../core/storage.js"></script>
+  <script src="../core/document-field-map.js"></script>
   <script src="../core/information-profile.js"></script>
+  <script src="../core/profile-manager.js"></script>
+  <script src="../core/conflict-engine.js"></script>
+  <script src="../core/file-validator.js"></script>
+  <script src="../core/document-classifier.js"></script>
+  <script src="../core/ocr-engine.js"></script>
+  <script src="../core/document-extractor.js"></script>
+  <script src="../core/document-source-manager.js"></script>
+  <script src="../core/image-preparation-engine.js"></script>
+  <script src="../core/upload-preparation-engine.js"></script>
+  <script src="../core/document-requirement-engine.js"></script>
   <script src="../core/availability-engine.js"></script>
   <script src="../core/source-selector.js"></script>
   <script src="../core/app-profiles.js"></script>
