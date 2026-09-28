@@ -3078,6 +3078,208 @@ async function itAsync(description, fn) {
     assert.strictEqual(ip.getValue('father_name'), 'PENDYALA SRINIVAS');
   });
 
+  // ── Group 31: Unified Document Workflow & Approval Autofill Invariants ──────
+  console.log('\n--- Group 31: Unified Document Workflow & Approval Autofill ---');
+
+  // Test 1: Approval action on proposal triggers verified autofill execution
+  it('Approval action: proposal with user value executes through AutofillEngine with native setter and verification', () => {
+    const engine = new AutofillEngine();
+    const fakeInput = {
+      tagName: 'INPUT',
+      type: 'text',
+      id: 'firstName',
+      value: '',
+      disabled: false,
+      readOnly: false,
+      focus: () => {},
+      blur: () => {},
+      dispatchEvent: () => {},
+      style: {}
+    };
+
+    const origGetElementById = global.document.getElementById;
+    global.document.getElementById = (id) => (id === 'firstName' ? fakeInput : null);
+
+    const proposal = {
+      fieldId: 'firstName',
+      canonicalId: 'first_name',
+      label: 'First Name',
+      proposedValue: 'sai',
+      approved: true
+    };
+
+    const report = engine.fill([proposal]);
+    global.document.getElementById = origGetElementById;
+
+    assert.strictEqual(report.success, true);
+    assert.strictEqual(report.filledCount, 1);
+    assert.strictEqual(report.results[0].verified, true);
+    assert.strictEqual(fakeInput.value, 'sai');
+  });
+
+  // Test 2: Proposal Card UI invariant: NO per-field document recommendation buttons
+  it('Proposal Card UI invariant: proposal card does NOT render per-field document buttons', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const sidepanelSource = fs.readFileSync(path.join(__dirname, '..', 'sidepanel', 'sidepanel.js'), 'utf8');
+    const createProposalCardMatch = sidepanelSource.match(/function createProposalCard[\s\S]*?return card;\s*\}/);
+    assert.ok(createProposalCardMatch, 'createProposalCard function found');
+    const cardFunc = createProposalCardMatch[0];
+    assert.ok(!cardFunc.includes('missing-field-rec'), 'Must not contain missing-field-rec');
+    assert.ok(!cardFunc.includes('btn-rec-doc'), 'Must not contain btn-rec-doc');
+    assert.ok(!cardFunc.includes('alt-sources-row'), 'Must not contain alt-sources-row');
+    assert.ok(!cardFunc.includes('getAddDocButtonLabel'), 'Must not call getAddDocButtonLabel inside card');
+  });
+
+  // Test 3: Incremental multi-document resolution: Doc 1 (Aadhaar) -> Doc 2 (10th Marksheet)
+  it('Incremental multi-document resolution: Doc 1 resolves personal fields, Doc 2 resolves academic fields', () => {
+    const ip = new InformationProfile(null);
+    const extractor = new DocumentExtractor();
+    const formFields = [
+      { elementId: 'f_name', canonicalId: 'full_name', label: 'Full Name' },
+      { elementId: 'f_dob', canonicalId: 'dob', label: 'Date of Birth' },
+      { elementId: 'f_addr', canonicalId: 'address_line', label: 'Permanent Address' },
+      { elementId: 'f_roll', canonicalId: 'edu_roll_number', label: '10th Roll Number' },
+      { elementId: 'f_pct', canonicalId: 'edu_percentage', label: '10th Percentage' }
+    ];
+
+    // Initial state: ALL 5 fields are missing
+    let proposals = selector.generateProposals(formFields, ip);
+    let missing = proposals.filter(p => p.status === STATUS.UNAVAILABLE);
+    assert.strictEqual(missing.length, 5, 'Initially all 5 fields missing');
+
+    // Document A: Aadhaar Card upload
+    const aadhaarText = `
+      GOVERNMENT OF INDIA
+      BHARAT SARKAR
+      MERA AADHAAR MERI PEHCHAAN
+      NAME: SAI VENKAT PENDYALA
+      DOB: 15/08/2000
+      MALE
+      ADDRESS: Plot 42, Road 10, Banjara Hills, Hyderabad
+      PIN: 500034
+      1234 5678 9012
+    `;
+    const docA = extractor.extract(aadhaarText, { filename: 'aadhaar_card.pdf', docType: 'AADHAAR' });
+    assert.ok(docA.fields.full_name, 'Aadhaar extracts Name');
+    assert.ok(docA.fields.dob, 'Aadhaar extracts DOB');
+    assert.ok(docA.fields.address_line, 'Aadhaar extracts Address');
+
+    // User approves Document A -> saved to InformationProfile
+    for (const [cid, obj] of Object.entries(docA.fields)) {
+      ip.setField(cid, obj.value, 'USER_CONFIRMED', 'Aadhaar Card');
+    }
+
+    // Re-evaluate current application: 3 fields satisfied, 2 still missing
+    proposals = selector.generateProposals(formFields, ip);
+    let ready = proposals.filter(p => p.status === STATUS.READY);
+    missing = proposals.filter(p => p.status === STATUS.UNAVAILABLE);
+    assert.strictEqual(ready.length, 3, 'Name, DOB, Address now ready');
+    assert.strictEqual(missing.length, 2, 'Roll number and Percentage still missing');
+    assert.ok(missing.some(m => m.canonicalId === 'edu_roll_number'));
+    assert.ok(missing.some(m => m.canonicalId === 'edu_percentage'));
+
+    // Document B: 10th Marksheet upload (via same + Add Any Document entry point)
+    const marksheetText = `
+      BOARD OF SECONDARY EDUCATION
+      SECONDARY SCHOOL CERTIFICATE (SSC)
+      ROLL NO: 180023456
+      CANDIDATE NAME: SAI VENKAT PENDYALA
+      FATHER NAME: PENDYALA SRINIVAS
+      YEAR OF PASSING: 2016
+      TOTAL MARKS: 560 / 600
+      PERCENTAGE: 93.3%
+      RESULT: PASSED
+    `;
+    const docB = extractor.extract(marksheetText, { filename: 'ssc_memo.pdf', docType: 'SSC_10TH' });
+    assert.ok(docB.fields.edu_roll_number, '10th Marksheet extracts roll number');
+    assert.ok(docB.fields.edu_percentage, '10th Marksheet extracts percentage');
+
+    // User approves Document B -> saved to InformationProfile
+    const eduRec = ip.addEducationRecord('edu-10th-test', '10th / SSC');
+    for (const [cid, obj] of Object.entries(docB.fields)) {
+      if (cid.startsWith('edu_')) {
+        ip.setField(cid, obj.value, 'USER_CONFIRMED', '10th Marksheet', 'edu-10th-test');
+      } else {
+        ip.setField(cid, obj.value, 'USER_CONFIRMED', '10th Marksheet');
+      }
+    }
+
+    // Re-evaluate current application: ALL 5 fields satisfied!
+    proposals = selector.generateProposals(formFields, ip);
+    ready = proposals.filter(p => p.status === STATUS.READY);
+    missing = proposals.filter(p => p.status === STATUS.UNAVAILABLE);
+    assert.strictEqual(ready.length, 5, 'All 5 application fields now satisfied');
+    assert.strictEqual(missing.length, 0, 'Zero missing fields remain');
+  });
+
+  // Test 4: Document extraction rule: extracts whole document regardless of form needs
+  it('Document extraction rule: extracts 1, 2, or many pieces without restriction to missing fields', () => {
+    const extractor = new DocumentExtractor();
+    // 1-piece document (Certificate Number only)
+    const singlePieceText = 'CERTIFICATE OF MERIT\\nCertificate No: MERIT-2024-889911';
+    const singleExtracted = extractor.extract(singlePieceText, { filename: 'merit.txt' });
+    assert.ok(Object.keys(singleExtracted.fields).length >= 1, 'Extracts single piece when document contains 1 piece');
+
+    // Multi-piece document (Marksheet with 8+ fields)
+    const multiPieceText = `
+      CENTRAL BOARD OF SECONDARY EDUCATION
+      ROLL NO: 19988776
+      CANDIDATE NAME: SAI VENKAT
+      FATHER'S NAME: SRINIVAS
+      MOTHER'S NAME: LAKSHMI
+      SCHOOL: HYDERABAD HIGH SCHOOL
+      BOARD: CBSE
+      YEAR: 2017
+      MARKS: 480
+      MAX MARKS: 500
+      PERCENTAGE: 96.0%
+    `;
+    const multiExtracted = extractor.extract(multiPieceText, { filename: 'full_memo.pdf', docType: 'SSC_10TH' });
+    const keys = Object.keys(multiExtracted.fields);
+    assert.ok(keys.length >= 6, `Extracts all available pieces (${keys.length} fields found)`);
+    assert.ok(multiExtracted.fields.full_name || multiExtracted.fields.first_name);
+    assert.ok(multiExtracted.fields.father_name);
+    assert.ok(multiExtracted.fields.mother_name);
+    assert.ok(multiExtracted.fields.edu_roll_number);
+    assert.ok(multiExtracted.fields.edu_percentage);
+    assert.ok(multiExtracted.fields.edu_year);
+  });
+
+  // Test 5: Use Once satisfies form without modifying persistent profile
+  it('Use Once satisfies current application proposals without modifying persistent profile', () => {
+    const ip = new InformationProfile(null);
+    ip.setField('full_name', 'Sai Venkat', 'USER_ENTERED', 'Manual');
+
+    const formFields = [
+      { elementId: 'f_name', canonicalId: 'full_name', label: 'Full Name' },
+      { elementId: 'f_roll', canonicalId: 'edu_roll_number', label: 'Roll Number' }
+    ];
+
+    // Roll number is missing initially
+    let proposals = selector.generateProposals(formFields, ip);
+    assert.strictEqual(proposals[1].status, STATUS.UNAVAILABLE);
+
+    // Apply via Use Once session override
+    const docSourceMgr = global.EFillDocumentSourceManager
+      ? global.EFillDocumentSourceManager.documentSourceManager
+      : (() => { try { return require('../core/document-source-manager.js').documentSourceManager; } catch(e) { return null; } })();
+
+    if (docSourceMgr) {
+      docSourceMgr.setUseOnceField('edu_roll_number', 'ONCE-998877', 'Temporary Memo (Use Once)');
+
+      // Generate proposals with session overrides
+      proposals = selector.generateProposals(formFields, ip, docSourceMgr.getSessionOverrides());
+      assert.ok(proposals[1].status === STATUS.READY || proposals[1].status === STATUS.REVIEW_REQUIRED);
+      assert.strictEqual(proposals[1].proposedValue, 'ONCE-998877');
+
+      // But persistent profile does NOT have it
+      assert.strictEqual(ip.getValue('edu_roll_number'), '');
+
+      docSourceMgr.clearSession();
+    }
+  });
+
   // ── Final Results Summary ─────────────────────────────────────────
   console.log('\n========================================');
   console.log(`📊 TEST RESULTS: ${passedTests} PASSED, ${failedTests} FAILED`);

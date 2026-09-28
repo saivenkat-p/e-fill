@@ -195,10 +195,45 @@
           sendResponse({ success: true });
           break;
 
-        case 'CLEAR_HIGHLIGHT':
-          clearHighlight();
-          sendResponse({ success: true });
+        case 'FILL_MOCK_CHALLENGE': {
+          const { elementId, selector, value } = message;
+          let el = null;
+          if (elementId) {
+            el = document.getElementById(elementId);
+            if (!el) {
+              try {
+                const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(elementId) : elementId;
+                el = document.querySelector(`[data-efill-id="${escaped}"]`);
+              } catch (e) {}
+            }
+          }
+          if (!el && selector) {
+            try { el = document.querySelector(selector); } catch (e) {}
+          }
+          if (!el) {
+            sendResponse({ success: false, error: 'Mock challenge field element not found in DOM' });
+            break;
+          }
+
+          try {
+            const proto = Object.getPrototypeOf(el);
+            const desc = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+            if (desc && desc.set) {
+              desc.set.call(el, value);
+            } else {
+              el.value = value;
+            }
+          } catch (e) {
+            el.value = value;
+          }
+
+          el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+          try { el.dispatchEvent(new Event('blur', { bubbles: true })); } catch (e) {}
+
+          sendResponse({ success: true, value: el.value });
           break;
+        }
 
         default:
           sendResponse({ success: false, error: `Unknown action: ${action}` });
@@ -237,6 +272,37 @@
     if (activeHighlightEl) {
       activeHighlightEl.style.boxShadow = originalHighlightStyle;
       activeHighlightEl = null;
-    }
+  }
+
+  // Expose for testing and direct invocation
+  if (typeof window !== 'undefined') {
+    window.__efill_fill_mock_challenge = function (elementId, value) {
+      let el = null;
+      if (elementId) {
+        el = document.getElementById(elementId);
+        if (!el) {
+          try {
+            const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(elementId) : elementId;
+            el = document.querySelector(`[data-efill-id="${escaped}"]`);
+          } catch (e) {}
+        }
+      }
+      if (!el) return false;
+      try {
+        const proto = Object.getPrototypeOf(el);
+        const desc = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+        if (desc && desc.set) {
+          desc.set.call(el, value);
+        } else {
+          el.value = value;
+        }
+      } catch (e) {
+        el.value = value;
+      }
+      el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+      try { el.dispatchEvent(new Event('blur', { bubbles: true })); } catch (e) {}
+      return el.value === value;
+    };
   }
 })();

@@ -38,11 +38,59 @@
         }));
       }
 
+      const isMockAttr = el.getAttribute('data-mock-challenge') === 'true' || el.getAttribute('data-efill-mock-challenge') === 'true';
+      const idOrName = `${el.id || ''} ${el.name || ''}`.toLowerCase();
+      const allText = `${label || ''} ${el.placeholder || ''} ${contextText || ''}`.toLowerCase();
+      const className = (el.className || '').toLowerCase();
+
+      const isMock = isMockAttr ||
+        idOrName.includes('mock_captcha') ||
+        idOrName.includes('mock_challenge') ||
+        allText.includes('mock human verification') ||
+        allText.includes('mock challenge') ||
+        allText.includes('mock captcha');
+
+      const isRealCaptcha = !isMock && (
+        className.includes('g-recaptcha') ||
+        className.includes('h-captcha') ||
+        className.includes('cf-turnstile') ||
+        className.includes('captcha') ||
+        /\b(captcha|recaptcha|hcaptcha|turnstile|security[_-]?code)\b/i.test(idOrName) ||
+        /\b(captcha|security code|enter the code shown|type the characters)\b/i.test(allText)
+      );
+
+      let challengeQuestion = null;
+      let challengeExpectedAnswer = null;
+      let challengePrompt = null;
+
+      if (isMock) {
+        const fullChallengeText = `${label || ''} ${contextText || ''} ${el.placeholder || ''}`;
+        const mathMatch = fullChallengeText.match(/(\d+)\s*([\+\-\*\/])\s*(\d+)/);
+        if (mathMatch) {
+          const num1 = parseInt(mathMatch[1], 10);
+          const op = mathMatch[2];
+          const num2 = parseInt(mathMatch[3], 10);
+          let expected = 0;
+          if (op === '+') expected = num1 + num2;
+          else if (op === '-') expected = num1 - num2;
+          else if (op === '*') expected = num1 * num2;
+          else if (op === '/') expected = Math.floor(num1 / num2);
+
+          challengeQuestion = `${num1} ${op} ${num2} = ?`;
+          challengeExpectedAnswer = String(expected);
+          challengePrompt = `What is the answer to ${num1} ${op} ${num2}?`;
+        } else {
+          challengeQuestion = '8 - 4 = ?';
+          challengeExpectedAnswer = '4';
+          challengePrompt = 'What is the answer to 8 - 4?';
+        }
+      }
+
       return {
         elementId,
         selector: this.getElementSelector(el),
         tagName: tag,
-        type,
+        type: isMock ? 'MOCK_SECURITY_CHALLENGE' : type,
         name: el.name || '',
         id: el.id || '',
         placeholder: el.placeholder || '',
@@ -54,8 +102,16 @@
         options,
         disabled: !!el.disabled,
         readOnly: !!el.readOnly,
-        required: !!el.required,
-        currentValue: el.value || ''
+        required: !!el.required || el.getAttribute('aria-required') === 'true' || el.classList.contains('required') || /\*|\(required\)/i.test(label || ''),
+        rawRequired: !!el.required,
+        ariaRequired: el.getAttribute('aria-required') === 'true',
+        currentValue: el.value || '',
+        isMockSecurityChallenge: isMock,
+        isRealSecurityChallenge: isRealCaptcha,
+        securityChallengeType: isMock ? 'MOCK_SECURITY_CHALLENGE' : (isRealCaptcha ? 'REAL_SECURITY_CHALLENGE' : null),
+        challengeQuestion,
+        challengeExpectedAnswer,
+        challengePrompt
       };
     }
 

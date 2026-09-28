@@ -64,8 +64,76 @@
       const confidence = field.confidence !== undefined ? field.confidence : (canonicalId ? 0.9 : 0);
       const { reason = '', elementId, label, options, type, selector, name, tagName } = field;
 
+      // Get ApplicationMappingEngine if available
+      const mappingEngine = global.EFillApplicationMappingEngine
+        ? global.EFillApplicationMappingEngine.applicationMappingEngine
+        : (typeof require !== 'undefined'
+          ? (() => { try { return require('./application-mapping-engine.js').applicationMappingEngine; } catch(e) { return null; } })()
+          : null);
+
+      // ── MOCK SECURITY CHALLENGE ───────────────────────────────────────────
+      if (field.isMockSecurityChallenge || field.securityChallengeType === 'MOCK_SECURITY_CHALLENGE' || canonicalId === 'mock_security_challenge' || (elementId && elementId.startsWith('mock_captcha'))) {
+        return {
+          fieldId:         elementId,
+          selector:        selector || '',
+          name:            name || '',
+          tagName:         tagName || '',
+          label:           label || 'Mock Human Verification',
+          type:            'MOCK_SECURITY_CHALLENGE',
+          canonicalId:     'mock_security_challenge',
+          proposedValue:   '',
+          source:          'Test Harness Challenge',
+          provenance:      null,
+          provenanceLabel: null,
+          status:          'ASSISTANT_ASSISTED_CHALLENGE',
+          confidence:      1.0,
+          reason:          'Safe test verification challenge',
+          approved:        false,
+          userEdited:      false,
+          conflicts:       [],
+          isSecurityChallenge: true,
+          isMockSecurityChallenge: true,
+          securityChallengeType: 'MOCK_SECURITY_CHALLENGE',
+          challengeQuestion: field.challengeQuestion || '8 - 4 = ?',
+          challengeExpectedAnswer: field.challengeExpectedAnswer || '4',
+          challengePrompt: field.challengePrompt || 'What is the answer to 8 - 4?'
+        };
+      }
+
+      // ── REAL SECURITY CHALLENGE ───────────────────────────────────────────
+      if (field.isRealSecurityChallenge || field.securityChallengeType === 'REAL_SECURITY_CHALLENGE' || (name && /captcha|recaptcha/i.test(name))) {
+        return {
+          fieldId:         elementId,
+          selector:        selector || '',
+          name:            name || '',
+          tagName:         tagName || '',
+          label:           label || 'Security Challenge',
+          type:            type || 'text',
+          canonicalId:     null,
+          proposedValue:   '',
+          source:          'Website Security',
+          provenance:      null,
+          provenanceLabel: null,
+          status:          'USER_ACTION_REQUIRED',
+          confidence:      1.0,
+          reason:          'Complete directly on website (Real CAPTCHA)',
+          approved:        false,
+          userEdited:      false,
+          conflicts:       [],
+          isSecurityChallenge: true,
+          isRealSecurityChallenge: true,
+          securityChallengeType: 'REAL_SECURITY_CHALLENGE'
+        };
+      }
+
       // ── UNIDENTIFIED ───────────────────────────────────────────────────────
       if (!canonicalId) {
+        if (mappingEngine) {
+          const mapped = mappingEngine.mapField(field, profile, extraSources);
+          if (mapped && mapped.proposedValue) {
+            return mapped;
+          }
+        }
         return {
           fieldId:         elementId,
           selector:        selector || '',
@@ -92,8 +160,15 @@
         const avail = engine.check(canonicalId, profile, extraSources);
         const status = AVAILABILITY_TO_STATUS[avail.status] || STATUS.UNAVAILABLE;
 
-        // If unavailable, no value to transform
+        // If unavailable, attempt ApplicationMappingEngine transformation before declaring missing
         if (status === STATUS.UNAVAILABLE) {
+          if (mappingEngine) {
+            const mapped = mappingEngine.mapField(field, profile, extraSources);
+            if (mapped && mapped.proposedValue) {
+              return mapped;
+            }
+          }
+
           const rawMap = global.EFillDocumentFieldMap || (typeof require !== 'undefined' ? (() => { try { return require('./document-field-map.js'); } catch(e) { return null; } })() : null);
           const fieldMap = rawMap?.documentFieldMap || rawMap;
           const recDoc = (fieldMap && typeof fieldMap.getRecommendedDocument === 'function' && canonicalId)
@@ -151,7 +226,11 @@
 
         // For AVAILABLE, REVIEW_REQUIRED, AMBIGUOUS — transform value
         const transformed = this.transformValue(avail.value, field);
-        const finalStatus = this._adjustStatusByConfidence(status, confidence);
+        const isUserSessionChoice = extraSources && (
+          extraSources[canonicalId]?.isSessionOnly ||
+          (elementId && extraSources[elementId]?.isSessionOnly)
+        ) && avail.provenance === 'USER_CONFIRMED';
+        const finalStatus = isUserSessionChoice ? STATUS.READY : this._adjustStatusByConfidence(status, confidence);
 
         return {
           fieldId:              elementId,
@@ -249,7 +328,9 @@
         USER_EDITED:         '✏️ User edited',
         DOCUMENT_EXTRACTED:  '📄 From document',
         IMPORTED:            '↓ Imported',
-        APPLICATION_SPECIFIC: '🔧 App-specific'
+        APPLICATION_SPECIFIC: '🔧 App-specific',
+        DERIVED:             '🔄 Derived',
+        APPLICATION_TRANSFORMED: '⚙️ Transformed'
       };
       return provenance ? (labels[provenance] || provenance) : null;
     }

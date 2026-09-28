@@ -166,16 +166,7 @@
       return {
         id: id || `edu-${Date.now()}`,
         qualification: qualificationLabel || '',
-        fields: {
-          edu_qualification: emptyField(),
-          edu_board:         emptyField(),
-          edu_institution:   emptyField(),
-          edu_year:          emptyField(),
-          edu_percentage:    emptyField(),
-          edu_marks:         emptyField(),
-          edu_max_marks:     emptyField(),
-          edu_roll_number:   emptyField()
-        }
+        fields: {}
       };
     }
 
@@ -237,7 +228,7 @@
       const meta = { canonicalField: canonicalId, ...extraMeta };
       const entry = makeFieldEntry(value, provenance, source, isSensitive, meta);
 
-      if (canonicalId.startsWith('edu_')) {
+      if (educationRecordId || canonicalId.startsWith('edu_')) {
         if (!this._data.education) this._data.education = [];
         let rec = null;
         if (educationRecordId) {
@@ -295,17 +286,17 @@
       const isSensitive = SENSITIVE_FIELDS.has(canonicalId);
       const entry = emptyField(isSensitive);
 
-      if (canonicalId.startsWith('edu_')) {
+      if (educationRecordId || canonicalId.startsWith('edu_')) {
         if (educationRecordId) {
           const rec = (this._data.education || []).find(r => r.id === educationRecordId);
-          if (rec && rec.fields && rec.fields[canonicalId]) {
-            rec.fields[canonicalId] = entry;
+          if (rec && rec.fields) {
+            delete rec.fields[canonicalId];
             this._data.lastUpdated = new Date().toISOString();
           }
         } else {
           for (const rec of (this._data.education || [])) {
             if (rec.fields && rec.fields[canonicalId]) {
-              rec.fields[canonicalId] = entry;
+              delete rec.fields[canonicalId];
             }
           }
           this._data.lastUpdated = new Date().toISOString();
@@ -545,11 +536,13 @@
       return rec;
     }
 
-    updateEducationRecord(id, fieldId, value, provenance, source) {
+    updateEducationRecord(id, fieldId, value, provenance, source, customLabel = null) {
       const rec = (this._data.education || []).find(r => r.id === id);
       if (!rec) return null;
       if (!rec.fields) rec.fields = {};
-      rec.fields[fieldId] = makeFieldEntry(value, provenance, source, false);
+      const entry = makeFieldEntry(value, provenance, source, false);
+      if (customLabel) entry.label = customLabel;
+      rec.fields[fieldId] = entry;
       this._data.lastUpdated = new Date().toISOString();
       return rec;
     }

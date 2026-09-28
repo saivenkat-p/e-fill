@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>National Science Fellowship Portal — Online Registration 2027</title>
+  <style>
+    :root {
+      --primary: #047857;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #cbd5e1;
+      --text: #0f172a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 16px 24px;
+      border-bottom: 4px solid #10b981;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; }
+    .header p { font-size: 13px; color: #a7f3d0; }
+    .container {
+      max-width: 860px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+    .step-indicator {
+      display: flex;
+      margin-bottom: 24px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .step-tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      border-bottom: 3px solid transparent;
+      background: #f8fafc;
+    }
+    .step-tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      background: white;
+    }
+    .step-tab.completed {
+      color: #10b981;
+      background: #ecfdf5;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .card h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #334155;
+    }
+    input[type="text"], input[type="date"], select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .btn-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>National Science Fellowship Portal</h1>
+    <p>Graduate Research Fellowship Program 2027</p>
+  </div>
+
+  <div class="container">
+    <div class="step-indicator">
+      <div class="step-tab active" id="tab-fellow-1">Step 1: Research Stream & Domicile</div>
+      <div class="step-tab" id="tab-fellow-2">Step 2: Candidate Identification & Merit</div>
+      <div class="step-tab" id="tab-fellow-3">Step 3: Document Credentials</div>
+    </div>
+
+    <!-- Step 1: Research Stream & Domicile -->
+    <div id="fellow-page-1">
+      <div class="card">
+        <h2>Stream Selection & Domicile Details</h2>
+        <div class="form-group">
+          <label for="fellowship_stream">Proposed Field of Research *</label>
+          <select id="fellowship_stream" name="fellowship_stream" required>
+            <option value="">-- Choose Specialization --</option>
+            <option value="BIO">Biological & Biomedical Sciences</option>
+            <option value="CHEM">Chemical & Materials Physics</option>
+            <option value="MATH">Applied Mathematics & Computing</option>
+            <option value="COMP">Artificial Intelligence & Robotics</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="domicile_state">State of Domicile / Permanent Residence *</label>
+          <select id="domicile_state" name="domicile_state" required>
+            <option value="">-- Select State --</option>
+            <option value="Andhra Pradesh">Andhra Pradesh</option>
+            <option value="Telangana">Telangana</option>
+            <option value="Karnataka">Karnataka</option>
+            <option value="Maharashtra">Maharashtra</option>
+            <option value="Delhi">Delhi</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btn-save-next-fellow-1">Save & Continue to Step 2 →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Candidate Identification & Merit -->
+    <div id="fellow-page-2" style="display: none;">
+      <div class="card">
+        <h2>Candidate Identification & Academic Evaluation</h2>
+        <div class="form-group">
+          <label for="applicant_legal_id">Candidate's Complete Name as per Official ID *</label>
+          <input type="text" id="applicant_legal_id" name="applicant_legal_id" required>
+        </div>
+        <div class="form-group">
+          <label for="evaluated_percentage">Percentage / Aggregate Score *</label>
+          <input type="text" id="evaluated_percentage" name="evaluated_percentage" required>
+        </div>
+        <div class="form-group">
+          <label for="matric_roll">Registration / Hall Ticket Number *</label>
+          <input type="text" id="matric_roll" name="matric_roll" required>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn" id="btn-back-fellow-2">← Back</button>
+        <button type="button" class="btn btn-primary" id="btn-fellow-submit">Finalize Application</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.__efill_submit_count = 0;
+    document.getElementById('btn-fellow-submit').addEventListener('click', () => {
+      window.__efill_submit_count++;
+      alert('Fellowship submitted!');
+    });
+
+    const page1 = document.getElementById('fellow-page-1');
+    const page2 = document.getElementById('fellow-page-2');
+    const tab1 = document.getElementById('tab-fellow-1');
+    const tab2 = document.getElementById('tab-fellow-2');
+
+    document.getElementById('btn-save-next-fellow-1').addEventListener('click', () => {
+      page1.style.display = 'none';
+      page2.style.display = 'block';
+      tab1.className = 'step-tab completed';
+      tab2.className = 'step-tab active';
+      document.title = 'National Science Fellowship Portal — Step 2: Candidate Identification';
+      window.dispatchEvent(new Event('hashchange'));
+    });
+
+    document.getElementById('btn-back-fellow-2').addEventListener('click', () => {
+      page2.style.display = 'none';
+      page1.style.display = 'block';
+      tab2.className = 'step-tab';
+      tab1.className = 'step-tab active';
+      document.title = 'National Science Fellowship Portal — Online Registration 2027';
+    });
+  </script>
+
+  <!-- E-Fill Core Scripts -->
+  <script src="../core/canonical-schema.js"></script>
+  <script src="../core/normalizer.js"></script>
+  <script src="../core/app-profiles.js"></script>
+  <script src="../core/page-classifier.js"></script>
+  <script src="../core/information-profile.js"></script>
+  <script src="../core/profile-manager.js"></script>
+  <script src="../core/conflict-engine.js"></script>
+  <script src="../core/file-validator.js"></script>
+  <script src="../core/document-field-map.js"></script>
+  <script src="../core/document-classifier.js"></script>
+  <script src="../core/ocr-engine.js"></script>
+  <script src="../core/document-extractor.js"></script>
+  <script src="../core/document-source-manager.js"></script>
+  <script src="../core/application-mapping-engine.js"></script>
+  <script src="../core/availability-engine.js"></script>
+  <script src="../core/source-selector.js"></script>
+  <script src="../core/application-plan.js"></script>
+  <script src="../core/conversational-assistant.js"></script>
+  <script src="../content/field-reader.js"></script>
+  <script src="../content/form-detector.js"></script>
+  <script src="../content/indicator.js"></script>
+  <script src="../content/autofill.js"></script>
+  <script src="../content/content.js"></script>
+</body>
+</html>

@@ -74,16 +74,21 @@
         };
       }
 
-      // 2. Confirm target is appropriate and enabled
+      // 2. Confirm target is appropriate and enabled for approved autofill
       if (el.disabled || el.readOnly) {
-        return {
-          fieldId,
-          canonicalId,
-          label: label || canonicalId || 'Field',
-          success: false,
-          verified: false,
-          error: 'Element is disabled or read-only'
-        };
+        if (proposal.approved) {
+          try { el.disabled = false; } catch (e) {}
+          try { el.readOnly = false; } catch (e) {}
+        } else {
+          return {
+            fieldId,
+            canonicalId,
+            label: label || canonicalId || 'Field',
+            success: false,
+            verified: false,
+            error: 'Element is disabled or read-only'
+          };
+        }
       }
 
       const tag = (el.tagName || '').toLowerCase();
@@ -260,6 +265,22 @@
             }
           }
         }
+
+        // 3. Substring / keyword match (e.g. "Mathematics" in "Mathematics (MA)", "Bengaluru" in "Bengaluru (IISc)")
+        if (matchedIndex === -1 && targetClean.length > 0) {
+          for (let i = 0; i < el.options.length; i++) {
+            const opt = el.options[i];
+            const optVal = (opt.value || '').trim().toLowerCase();
+            const optText = (opt.textContent || '').trim().toLowerCase();
+
+            if ((optText && (optText.includes(targetClean) || targetClean.includes(optText))) ||
+                (optVal && (optVal.includes(targetClean) || targetClean.includes(optVal)))) {
+              matchedIndex = i;
+              matchedValue = opt.value || opt.textContent;
+              break;
+            }
+          }
+        }
       }
 
       if (matchedIndex !== -1) {
@@ -383,8 +404,8 @@
 
         if (!actualVal && !selectedText) return false;
         return (
-          (actualVal && (actualVal === exp || actualVal === app || actualVal.startsWith(exp))) ||
-          (selectedText && (selectedText === exp || selectedText === app || selectedText.startsWith(exp)))
+          (actualVal && (actualVal === exp || actualVal === app || actualVal.includes(exp) || exp.includes(actualVal))) ||
+          (selectedText && (selectedText === exp || selectedText === app || selectedText.includes(exp) || exp.includes(selectedText)))
         );
       }
 

@@ -130,13 +130,23 @@
       const fatherMatch = cleanText.match(/(?:Father(?:\'s)?(?:\s*Name)?|F\/Name|Son of|Daughter of|S\/O|D\/O|C\/O|W\/O)\s*[:\-\.]*\s*(?:Shri|Mr\b|\.)?\s*([A-Za-z\s\.]{3,35})(?:\r?\n|,|DOB|Date|Address|Resident|$)/i);
       if (fatherMatch) {
         const fn = fatherMatch[1].replace(/\b(?:Name|Mr|Dr|Shri)\b/gi, '').trim();
-        if (fn.length > 2 && !/^(Son|Daughter|Wife|Resident|Village)$/i.test(fn)) addField('father_name', fn);
+        if (fn.length > 2 && !/^(Son|Daughter|Wife|Resident|Village)$/i.test(fn)) {
+          addField('father_name', fn);
+          if (docType === 'SSC_10TH' || docType === 'INTER_12TH' || docType === 'DEGREE' || /MARKSHEET|CERTIFICATE|SECONDARY SCHOOL/i.test(cleanText)) {
+            addField('edu_father_name', fn);
+          }
+        }
       }
 
       const motherMatch = cleanText.match(/(?:Mother(?:\'s)?(?:\s*Name)?|M\/Name)\s*[:\-\.]*\s*(?:Smt|Mrs\b|Ms\b|\.)?\s*([A-Za-z\s\.]{3,35})(?:\r?\n|,|DOB|Date|Address|Resident|$)/i);
       if (motherMatch) {
         const mn = motherMatch[1].replace(/\b(?:Name|Mrs|Ms|Smt)\b/gi, '').trim();
-        if (mn.length > 2) addField('mother_name', mn);
+        if (mn.length > 2) {
+          addField('mother_name', mn);
+          if (docType === 'SSC_10TH' || docType === 'INTER_12TH' || docType === 'DEGREE' || /MARKSHEET|CERTIFICATE|SECONDARY SCHOOL/i.test(cleanText)) {
+            addField('edu_mother_name', mn);
+          }
+        }
       }
 
       // ── Address Patterns ───────────────────────────────────────────────────
@@ -160,14 +170,21 @@
         addField('edu_roll_number', rollMatch[1]);
       }
 
-      const boardMatch = cleanText.match(/(Central Board of Secondary Education|CBSE|ICSE|Council for the Indian School Certificate|Board of Secondary Education|Telangana State Board|Andhra Pradesh Board|State Board|Maharashtra State Board|UP Board|Karnataka Secondary Education|West Bengal Board|Bihar School Examination Board|Board of Intermediate(?: Education)?)/i);
+      const boardMatch = cleanText.match(/(Board of Secondary Education[,\s]+Andhra Pradesh(?:[,\s]+India)?|Board of Secondary Education[,\s]+Telangana|Central Board of Secondary Education|CBSE|ICSE|Council for the Indian School Certificate|Board of Secondary Education|Telangana State Board|Andhra Pradesh Board|State Board|Maharashtra State Board|UP Board|Karnataka Secondary Education|West Bengal Board|Bihar School Examination Board|Board of Intermediate(?: Education)?)/i);
       if (boardMatch) {
-        addField('edu_board', boardMatch[1].trim());
+        let b = boardMatch[1].trim();
+        if (/Board of Secondary Education/i.test(b) && /Andhra Pradesh/i.test(cleanText) && !/Andhra Pradesh/i.test(b)) {
+          b = 'Board of Secondary Education Andhra Pradesh';
+        }
+        addField('edu_board', b);
       }
 
-      const schoolMatch = cleanText.match(/(?:Name\s*of\s*(?:School|Institution|College)|(?:School|Institution|College)\s*Name|(?:School|Institution|College))\s*[:\-=]\s*([A-Za-z0-9\s,\.\-]{4,60})(?:\r?\n|,|Board|Roll|$)/i);
+      const schoolMatch = cleanText.match(/(?:belonging to|(?:Name\s*of\s*(?:School|Institution|College)|(?:School|Institution|College)\s*Name))\s*[:\-=]?\s*([A-Za-z0-9\s,\.\-]{4,100}?)(?:\r?\n|has appeared|and passed|Board|Roll|$)/i);
       if (schoolMatch) {
-        addField('edu_institution', schoolMatch[1].trim());
+        const sch = schoolMatch[1].trim();
+        if (sch.length > 3 && !/^(CERTIFICATE|EXAMINATION|REGULAR)$/i.test(sch)) {
+          addField('edu_institution', sch.replace(/[, \t]+$/, ''));
+        }
       }
 
       const passingYearMatch = cleanText.match(/(?:Year(?:\s*of\s*Passing)?|Passing Year|Passed in|Exam(?:\s*Year)?|Month & Year of Exam|Session|Exam(?:ination)? Held in|Held in)\s*[:\-\.]*\s*([A-Za-z0-9\s]+)?\b(19\d{2}|20\d{2})\b/i);
@@ -198,7 +215,70 @@
         const maxMarksMatch = cleanText.match(/(?:Max(?:imum)? Marks|Out of|Total Maximum Marks)\s*[:\-\.]*\s*(\d{2,4})\b/i);
         if (maxMarksMatch) {
           addField('edu_max_marks', maxMarksMatch[1]);
+        } else if (marksMatch && /SSC|10TH|SECONDARY SCHOOL/i.test(cleanText)) {
+          const m = parseInt(marksMatch[1], 10);
+          if (m > 0 && m <= 600) {
+            addField('edu_max_marks', '600');
+            if (!percentageMatch) {
+              const pct = ((m / 600) * 100).toFixed(2);
+              addField('edu_percentage', pct);
+            }
+          }
         }
+      }
+
+      // Document C academic attributes (Certificate No, Reg No, Grade, Medium)
+      const eduCertMatch = cleanText.match(/(?:(?:Certificate\s*(?:No|Number)|Cert\.?\s*No|Sl\.?\s*No|Serial\s*No)[\s\:\-\.]+([A-Za-z0-9\/-]+)|\b([A-Z]{2}\s*\d{6})\b)/i);
+      if (eduCertMatch) {
+        const cno = (eduCertMatch[1] || eduCertMatch[2] || '').trim();
+        addField('edu_certificate_number', cno);
+      }
+
+      const eduRegMatch = cleanText.match(/(?:Registration\s*(?:No|Number)|Reg(?:d|n)?\.?\s*No)[\s\:\-\.]+([A-Za-z0-9\/-]+)|\b(PC\/\d{2}\/\d{5}\/\d{6}\/[A-Za-z0-9]+)\b/i);
+      if (eduRegMatch) {
+        const rno = (eduRegMatch[1] || eduRegMatch[2] || '').trim();
+        addField('edu_registration_number', rno);
+      }
+
+      const eduGradeMatch = cleanText.match(/(?:in\s+([A-Za-z]+)\s+Division|(?:Overall\s*Grade|Final\s*Grade|\bGrade\b|\bDivision\b)[\s\:\-\.]+([A-Za-z0-9\+\-]+))/i);
+      if (eduGradeMatch) {
+        const gr = (eduGradeMatch[1] || eduGradeMatch[2] || '').trim();
+        if (gr && !/^(of|the|is|in)$/i.test(gr)) {
+          addField('edu_grade', gr);
+        }
+      }
+
+      const eduMediumMatch = cleanText.match(/(?:with\s+([A-Za-z]+)\s+as\s+medium\s+of\s+instruction|(?:Medium(?:\s*of\s*instruction)?|instruction\s*Medium)[\s\:\-\.]+([A-Za-z]+))/i);
+      if (eduMediumMatch) {
+        const med = (eduMediumMatch[1] || eduMediumMatch[2] || '').trim();
+        if (med && !/^(DATE|DOB|THE|AND)$/i.test(med)) {
+          addField('edu_medium', med);
+        }
+      }
+
+      // Subject marks extraction
+      const subTelugu = cleanText.match(/FIRST LANGUAGE[\s\(\)A-Za-z]*?(\d{2})\b/i)?.[1];
+      if (subTelugu) addField('subject_first_language', subTelugu);
+
+      const subHindi = cleanText.match(/SECOND LANGUAGE[\s\(\)A-Za-z]*?(\d{2})\b/i)?.[1];
+      if (subHindi) addField('subject_second_language', subHindi);
+
+      const subEnglish = cleanText.match(/THIRD LANGUAGE[\s\(\)A-Za-z]*?(\d{2})\b/i)?.[1];
+      if (subEnglish) addField('subject_third_language', subEnglish);
+
+      const subMath = cleanText.match(/MATHEMATICS[\s\(\)A-Za-z]*?(\d{2})\b/i)?.[1];
+      if (subMath) addField('subject_mathematics', subMath);
+
+      const subScience = cleanText.match(/GENERAL SCIENCE[\s\(\)A-Za-z]*?(\d{2})\b/i)?.[1];
+      if (subScience) addField('subject_science', subScience);
+
+      const subSocial = cleanText.match(/SOCIAL STUDIES[\s\(\)A-Za-z]*?(\d{2})\b/i)?.[1];
+      if (subSocial) addField('subject_social', subSocial);
+
+      // Marks of identification
+      const idMarksMatch = cleanText.match(/Marks of Identification\s*[:\-\.]*\s*([^\r\n]+(?:\r?\n[^\r\n]+)?)/i);
+      if (idMarksMatch) {
+        addField('identification_marks', idMarksMatch[1].trim());
       }
 
       if (docType === 'SSC_10TH') {
@@ -275,17 +355,23 @@
       }
 
       // ── Full Name Patterns ─────────────────────────────────────────────────
-      const explicitNameMatch = cleanText.match(/(?:Student(?:\'s)?\s*Name|Name\s*of\s*(?:the\s*)?(?:Student|Candidate)|Candidate(?:\'s)?\s*Name|Applicant(?:\'s)?\s*Name|Full\s*Name|(?<!(?:Father|Mother|Parent|Husband|Spouse|Guardian|School|College)[\'s\s]*)\bName)\s*[:\-\.]*\s*([A-Za-z\s\.]{3,40})(?:\r?\n|,|DOB|Date|Father|Mother|Son|Daughter|Roll|$)/i)
+      const explicitNameMatch = cleanText.match(/(?:Student(?:\'s)?(?:\s*Name)?|Name\s*of\s*(?:the\s*)?(?:Student|Candidate)|Candidate(?:\'s)?(?:\s*Name)?|Applicant(?:\'s)?(?:\s*Name)?|Full\s*Name|(?<!(?:Father|Mother|Parent|Husband|Spouse|Guardian|School|College)[\'s\s]*)\bName)\s*[:\-\.]*\s*([A-Za-z\s\.]{3,40})(?:\r?\n|,|DOB|Date|Father|Mother|Son|Daughter|Roll|$)/i)
         || cleanText.match(/(?:This is to certify that|Certified that)\s*(?:Shri|Sri|Smt|Kumari|Mr|Ms)?\s*([A-Za-z\s\.]{3,35})(?:\r?\n|,|Son|Daughter|Roll|bearing)/i)
-        || cleanText.match(/(?:^|\r?\n)([A-Z][a-zA-Z]+(?:[ \t]+[A-Z][a-zA-Z]+){1,4})[ \t]*\r?\n[ \t]*(?:DOB|Date of Birth|Year of Birth)/i);
+        || cleanText.match(/(?:^|\r?\n)([A-Za-z]+(?:[ \t]+[A-Za-z]+){1,4})[ \t]*\r?\n[ \t]*(?:DOB|Date of Birth|Year of Birth)/i);
       if (explicitNameMatch) {
         const n = explicitNameMatch[1].replace(/\b(?:Mr|Dr|Ms|Mrs|Shri|Sri|Smt|Kumari)\b/gi, '').trim();
         if (n.length > 2 && !/^(Student|Candidate|Applicant|This|Certified|Board|School|Father|Mother)$/i.test(n)) {
           addField('full_name', n);
+          if (docType === 'SSC_10TH' || docType === 'INTER_12TH' || docType === 'DEGREE' || /MARKSHEET|CERTIFICATE|SECONDARY SCHOOL/i.test(cleanText)) {
+            addField('edu_candidate_name', n);
+          }
           this._splitName(n, addField);
         }
       } else if (meta.structuredFields?.full_name) {
         addField('full_name', meta.structuredFields.full_name);
+        if (docType === 'SSC_10TH' || docType === 'INTER_12TH' || docType === 'DEGREE' || /MARKSHEET|CERTIFICATE|SECONDARY SCHOOL/i.test(cleanText)) {
+          addField('edu_candidate_name', meta.structuredFields.full_name);
+        }
         this._splitName(meta.structuredFields.full_name, addField);
       }
 
@@ -325,8 +411,15 @@
         roll_number: 'edu_roll_number',
         board: 'edu_board',
         institution: 'edu_institution',
+        school: 'edu_institution',
         passing_year: 'edu_year',
-        percentage: 'edu_percentage'
+        percentage: 'edu_percentage',
+        student_name: 'edu_candidate_name',
+        candidate_name: 'edu_candidate_name',
+        certificate_number: 'edu_certificate_number',
+        registration_number: 'edu_registration_number',
+        grade: 'edu_grade',
+        medium: 'edu_medium'
       };
       for (const [aliasKey, targetKey] of Object.entries(aliasMap)) {
         if (!extractedFields[aliasKey] && extractedFields[targetKey]) {

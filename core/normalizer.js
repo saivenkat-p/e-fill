@@ -62,6 +62,36 @@
       const inputType = (signals.type || '').toLowerCase();
       const options = (signals.options || []).map(o => this.cleanText(typeof o === 'string' ? o : o.text || o.value));
 
+      // 0. Security Challenge Classification (Mock vs Real)
+      const isMock = signals.isMockSecurityChallenge ||
+        (signals.id && signals.id.startsWith('mock_captcha')) ||
+        (signals.name && signals.name.startsWith('mock_captcha')) ||
+        label.includes('mock human verification') ||
+        label.includes('mock challenge') ||
+        label.includes('mock captcha');
+
+      if (isMock) {
+        return {
+          canonicalId: 'mock_security_challenge',
+          confidence: 1.0,
+          reason: 'Safe test verification challenge',
+          requiresReview: false
+        };
+      }
+
+      const isRealCaptcha = signals.isRealSecurityChallenge ||
+        name.includes('captcha') || id.includes('captcha') ||
+        label.includes('captcha') || label.includes('security code');
+
+      if (isRealCaptcha) {
+        return {
+          canonicalId: null,
+          confidence: 0,
+          reason: 'Real CAPTCHA requires direct human completion',
+          requiresReview: true
+        };
+      }
+
       // 1. High-priority standard autocomplete attributes
       const acMatch = this.checkAutocomplete(signals.autocomplete);
       if (acMatch) {
@@ -193,9 +223,15 @@
         };
       }
 
-      // Unidentified / Ambiguous field
+      // Unidentified / Ambiguous field — generate clean application-specific ID from label/name/id
+      const fallbackText = signals.label || signals.name || signals.id || '';
+      const appSpecificId = fallbackText
+        ? fallbackText.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30)
+        : null;
+
       return {
         canonicalId: null,
+        appSpecificId,
         confidence: 0,
         reason: 'No high-confidence canonical match found',
         requiresReview: true

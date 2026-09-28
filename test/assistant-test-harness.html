@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>National Application Portal — Assistant QA 2027</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #cbd5e1;
+      --text: #0f172a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 16px 24px;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; }
+    .container {
+      max-width: 800px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .card h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #334155;
+    }
+    input[type="text"], input[type="date"], select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .btn-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>National Application Portal — Assistant QA 2027</h1>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h2>Contact & Country Details</h2>
+
+      <div class="form-group">
+        <label for="country">Country <span style="color:red;">*</span></label>
+        <select id="country" name="country" required>
+          <option value="">-- Select Country --</option>
+          <option value="India">India</option>
+          <option value="United States">United States</option>
+          <option value="United Kingdom">United Kingdom</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="applicant_email">Email Address <span style="color:red;">*</span></label>
+        <input type="text" id="applicant_email" name="applicant_email" required>
+      </div>
+
+      <div class="form-group">
+        <label for="applicant_mobile">Mobile Number <span style="color:red;">*</span></label>
+        <input type="text" id="applicant_mobile" name="applicant_mobile" required>
+      </div>
+
+      <div class="form-group">
+        <label for="jam_paper">Select Examination Paper <span style="color:red;">*</span></label>
+        <select id="jam_paper" name="jam_paper" required>
+          <option value="">-- Choose Test Paper --</option>
+          <option value="Mathematics (MA)">Mathematics (MA)</option>
+          <option value="Physics (PH)">Physics (PH)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="percentage">Percentage of Marks <span style="color:red;">*</span></label>
+        <input type="text" id="percentage" name="percentage" required>
+      </div>
+
+      <div class="form-group">
+        <label for="dob">Date of Birth <span style="color:red;">*</span></label>
+        <input type="text" id="dob" name="dob" required>
+      </div>
+
+      <div class="form-group">
+        <label for="mock_captcha_answer">Mock Human Verification (8 - 4 = ?)</label>
+        <input type="text" id="mock_captcha_answer" name="mock_captcha_answer" data-mock-challenge="true" placeholder="Enter calculation result">
+      </div>
+
+      <div class="form-group">
+        <label for="real_captcha_input">Security Code (Real CAPTCHA)</label>
+        <input type="text" id="real_captcha_input" name="captcha" class="g-recaptcha-response" placeholder="Enter characters from image">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.__efill_submit_count = 0;
+  </script>
+
+  <!-- E-Fill Core Scripts -->
+  <script src="../core/canonical-schema.js"></script>
+  <script src="../core/normalizer.js"></script>
+  <script src="../core/app-profiles.js"></script>
+  <script src="../core/page-classifier.js"></script>
+  <script src="../core/information-profile.js"></script>
+  <script src="../core/profile-manager.js"></script>
+  <script src="../core/conflict-engine.js"></script>
+  <script src="../core/file-validator.js"></script>
+  <script src="../core/document-field-map.js"></script>
+  <script src="../core/document-classifier.js"></script>
+  <script src="../core/ocr-engine.js"></script>
+  <script src="../core/document-extractor.js"></script>
+  <script src="../core/document-source-manager.js"></script>
+  <script src="../core/application-mapping-engine.js"></script>
+  <script src="../core/availability-engine.js"></script>
+  <script src="../core/source-selector.js"></script>
+  <script src="../core/application-plan.js"></script>
+  <script src="../core/conversational-assistant.js"></script>
+  <script src="../content/field-reader.js"></script>
+  <script src="../content/form-detector.js"></script>
+  <script src="../content/indicator.js"></script>
+  <script src="../content/autofill.js"></script>
+  <script src="../content/content.js"></script>
+</body>
+</html>

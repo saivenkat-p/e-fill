@@ -23,7 +23,9 @@
     USER_CONFIRMED:      'USER_CONFIRMED',       // User reviewed and confirmed extracted data
     USER_EDITED:         'USER_EDITED',          // User modified a previously stored value
     IMPORTED:            'IMPORTED',             // Imported from external source
-    APPLICATION_SPECIFIC: 'APPLICATION_SPECIFIC' // Provided for a specific application only
+    APPLICATION_SPECIFIC: 'APPLICATION_SPECIFIC', // Provided for a specific application only
+    DERIVED:             'DERIVED',              // Derived / decomposed from other profile data
+    APPLICATION_TRANSFORMED: 'APPLICATION_TRANSFORMED' // Transformed to meet specific application field requirements
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -417,6 +419,30 @@
     },
 
     // ── EDUCATION (form-level fields, mapped from education records) ──────────
+    edu_candidate_name: {
+      id: 'edu_candidate_name',
+      label: 'Student Name',
+      category: 'education',
+      aliases: ['student name', 'candidate name', 'applicant name in certificate', 'name in marksheet'],
+      negativeKeywords: [],
+      priority: 9
+    },
+    edu_father_name: {
+      id: 'edu_father_name',
+      label: "Father's Name",
+      category: 'education',
+      aliases: ['father name in certificate', 'fathers name in certificate', 'father name in marksheet'],
+      negativeKeywords: [],
+      priority: 9
+    },
+    edu_mother_name: {
+      id: 'edu_mother_name',
+      label: "Mother's Name",
+      category: 'education',
+      aliases: ['mother name in certificate', 'mothers name in certificate', 'mother name in marksheet'],
+      negativeKeywords: [],
+      priority: 9
+    },
     edu_qualification: {
       id: 'edu_qualification',
       label: 'Qualification',
@@ -502,6 +528,88 @@
       ],
       negativeKeywords: [],
       priority: 8
+    },
+    edu_certificate_number: {
+      id: 'edu_certificate_number',
+      label: 'Certificate Number',
+      category: 'education',
+      aliases: ['certificate number', 'cert no', 'certificate no', 'marksheet serial number', 'sl no', 'serial no', 'marksheet number'],
+      negativeKeywords: [],
+      priority: 8
+    },
+    edu_registration_number: {
+      id: 'edu_registration_number',
+      label: 'Registration Number',
+      category: 'education',
+      aliases: ['registration number', 'reg number', 'registration no', 'regd no', 'enrolment number', 'enrollment no'],
+      negativeKeywords: [],
+      priority: 8
+    },
+    edu_grade: {
+      id: 'edu_grade',
+      label: 'Grade',
+      category: 'education',
+      aliases: ['grade', 'overall grade', 'final grade', 'letter grade'],
+      negativeKeywords: [],
+      priority: 8
+    },
+    edu_medium: {
+      id: 'edu_medium',
+      label: 'Medium of Instruction',
+      category: 'education',
+      aliases: ['medium', 'medium of instruction', 'medium of study', 'language medium'],
+      negativeKeywords: [],
+      priority: 8
+    },
+
+    // ── EXAMINATION / APPLICATION PREFERENCES ────────────────────────────────
+    jam_paper: {
+      id: 'jam_paper',
+      label: 'JAM Test Paper',
+      category: 'examination',
+      aliases: [
+        'select jam paper', 'select jam 2027 paper', 'jam paper', 'test paper',
+        'paper', 'subject paper', 'examination paper', 'jam 2027 paper', 'exam paper',
+        'test paper code', 'choice of test paper'
+      ],
+      negativeKeywords: ['city', 'center', 'centre', 'state', 'town'],
+      priority: 9
+    },
+    exam_city_1: {
+      id: 'exam_city_1',
+      label: 'Examination City (Choice 1)',
+      category: 'examination',
+      aliases: [
+        'choice of examination city 1', 'examination city 1', 'exam city 1',
+        'choice of city 1', 'preferred city 1', 'city choice 1', 'test city 1',
+        'first choice city', 'select first choice city', 'city 1', 'first preference city'
+      ],
+      negativeKeywords: ['choice 2', 'choice 3', 'second', 'third'],
+      priority: 9
+    },
+    exam_city_2: {
+      id: 'exam_city_2',
+      label: 'Examination City (Choice 2)',
+      category: 'examination',
+      aliases: [
+        'choice of examination city 2', 'examination city 2', 'exam city 2',
+        'choice of city 2', 'preferred city 2', 'city choice 2', 'test city 2',
+        'second choice city', 'select second choice city', 'city 2', 'second preference city'
+      ],
+      negativeKeywords: ['choice 1', 'choice 3', 'first', 'third'],
+      priority: 9
+    },
+    exam_city_3: {
+      id: 'exam_city_3',
+      label: 'Examination City (Choice 3)',
+      category: 'examination',
+      aliases: [
+        'choice of examination city 3', 'examination city 3', 'exam city 3',
+        'choice of city 3', 'preferred city 3', 'city choice 3', 'test city 3',
+        'third choice city', 'select third choice city', 'city 3', 'third preference city'
+      ],
+      negativeKeywords: ['choice 1', 'choice 2', 'first', 'second'],
+      priority: 9
     },
 
     // ── EMPLOYMENT ───────────────────────────────────────────────────────────

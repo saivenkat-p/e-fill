@@ -24,6 +24,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
+      "all_frames": true,
       "js": [
         "core/canonical-schema.js",
         "core/normalizer.js",
@@ -41,8 +42,11 @@
         "core/image-preparation-engine.js",
         "core/upload-preparation-engine.js",
         "core/document-requirement-engine.js",
+        "core/application-mapping-engine.js",
         "core/availability-engine.js",
         "core/source-selector.js",
+        "core/application-plan.js",
+        "core/conversational-assistant.js",
         "content/field-reader.js",
         "content/form-detector.js",
         "content/indicator.js",

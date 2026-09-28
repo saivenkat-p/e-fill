@@ -340,6 +340,11 @@ body {
   border-left: 4px solid var(--success);
 }
 
+.proposal-card.filled {
+  border-left: 4px solid var(--success);
+  background: rgba(34, 197, 94, 0.05);
+}
+
 .proposal-card.review {
   border-left: 4px solid var(--warning);
 }
@@ -883,25 +888,31 @@ body {
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 12px;
   z-index: 999;
+  box-sizing: border-box;
 }
 .modal-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
+  max-height: calc(100vh - 24px);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: modalPop 0.18s ease-out;
+  box-sizing: border-box;
+}
+.modal-card-lg {
+  max-width: 440px;
 }
 @keyframes modalPop {
   from { opacity: 0; transform: scale(0.96); }
@@ -914,11 +925,13 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 .modal-header h3 {
   font-size: 14px;
   font-weight: 700;
   color: var(--text-main);
+  margin: 0;
 }
 .btn-modal-close {
   background: transparent;
@@ -928,6 +941,7 @@ body {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
+  line-height: 1;
 }
 .btn-modal-close:hover {
   color: #ffffff;
@@ -938,6 +952,25 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-body::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 3px;
+}
+.modal-body::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 .field-resolve-hint {
   font-size: 10.5px;
@@ -965,6 +998,44 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* Inline Document Difference / Conflict Indicators */
+.processed-diff-indicator {
+  margin-top: 5px;
+  padding: 6px 8px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 5px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.diff-existing-tag {
+  color: #94a3b8;
+}
+.diff-existing-tag strong {
+  color: #f1f5f9;
+}
+.diff-doc-tag {
+  color: #38bdf8;
+}
+.diff-doc-tag strong {
+  color: #67e8f9;
+}
+.diff-conflict-badge {
+  display: inline-block;
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 6px;
+  text-transform: uppercase;
 }
 
 /* Delete Confirmation Modal */

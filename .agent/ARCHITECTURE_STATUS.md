@@ -1,24 +1,25 @@
-# Agent Status
+# Architecture & Safety Status (Agent 3)
 
-Agent: Architecture & Feature Subagent
-Role: System Architecture & Feature Extension Guard
-Status: COMPLETED
-Started: 2026-09-24T21:42:15+05:30
-Last Updated: 2026-09-25T00:36:00+05:30
-Current Task: Real-Browser Architectural Invariant Audit & End-to-End Contract Verification
-Current Step: Real-browser CDP audit verified all system invariants under live Chrome execution
-Files Being Investigated:
-- test/browser-e2e.cjs
-- test/test-harness.html
-- core/canonical-schema.js
-- content/autofill.js
-- content/indicator.js
-Tests Running: None
-Latest Finding:
-- ZERO AUTO-SUBMIT INVARIANT VERIFIED: Live browser audit confirmed that autofill never triggers submit events, never clicks submit buttons, and never auto-checks legal declarations or consent checkboxes.
-- DOCUMENT NON-PERSISTENCE INVARIANT VERIFIED: Raw document buffers are processed entirely in transient memory; only approved structured fields are written to storage. Original PDF/image bytes are immediately discarded.
-- PII ISOLATION INVARIANT VERIFIED: Floating pill operates as an ambient indicator; user data resides isolated in Chrome storage and sidepanel context, never leaking to the host DOM.
-- MULTI-PROFILE ISOLATION INVARIANT VERIFIED: Name/identity mismatch detection prevents foreign documents from corrupting or overwriting active user profiles.
-- GENERAL FORM & DOCUMENT ARCHITECTURE VERIFIED: Extension operates as a general form-understanding tool (no government site or specific document whitelist requirement).
-Blockers: None.
-Next Action: Stand by for new directives.
+## Architectural Boundaries & Principles
+
+### 1. Absolute Four-Way Separation
+- **My Information**: The complete, living, user-controlled information store. Contains everything E-Fill knows about the selected person. Grows over time.
+- **Application Plan**: What the current application requires / may require. Tracks discovered pages, discovered sections, detected fields, requirements vs. My Information (available, missing, conflicts), pending user questions, and document requirements.
+- **Review & Fill**: ONLY the current page's actionable fields. Never displays the entire My Information database.
+- **Assistant**: Conversational interface for gathering missing or ambiguous information. Driven by Application Plan + My Information. Does NOT act as an independent source of truth.
+
+### 2. Dynamic Information & Document Rules
+- **No Monolithic Multi-Input Forms**: Education records and dynamically extracted fields must use individual `profile-field-item` cards with their own `✏️` edit and `🗑️` delete buttons.
+- **Document A/B/C Rules**:
+  - Document A: Populates all present missing fields.
+  - Document B: Populates present fields (e.g. Board); does NOT fabricate missing fields (e.g. Year).
+  - Document C: Merges existing fields; creates new individual fields for new data (Certificate Number, Registration Number, Grade, Medium, etc.).
+- **Unrestricted Extraction**: Active application missing fields must NEVER restrict document extraction. The whole document is always processed.
+
+### 3. Safety & Privacy Invariants
+- **Zero Auto-Submit**: Form submit attempts must remain strictly `0`. Submit buttons are never programmatically clicked.
+- **No Automatic Next**: Page progression is manual; the user navigates to subsequent steps.
+- **No CAPTCHA / OTP Bypass**: Strictly prohibited.
+- **No Automatic Legal Acceptance**: Checkboxes declaring statements or legal commitments are never bulk auto-checked.
+- **No Original Document Persistence**: Original document images or PDF binary blobs are never stored; only structured canonical/custom data with provenance is retained.
+- **Profile Isolation**: Multiple person profiles (e.g. Sai vs. Brother) remain strictly isolated; one person's document never overwrites another.

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JAM 2027 — Joint Admission test for Masters (Online Application Portal)</title>
+  <style>
+    :root {
+      --jam-navy: #1e3a8a;
+      --jam-gold: #f59e0b;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #cbd5e1;
+      --text: #0f172a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .top-bar {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 6px 20px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .header {
+      background: var(--jam-navy);
+      color: white;
+      padding: 16px 24px;
+      border-bottom: 4px solid var(--jam-gold);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; }
+    .header p { font-size: 13px; color: #93c5fd; }
+    .container {
+      max-width: 900px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+    .step-indicator {
+      display: flex;
+      margin-bottom: 24px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .step-tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      border-right: 1px solid var(--border);
+      background: #f1f5f9;
+    }
+    .step-tab:last-child { border-right: none; }
+    .step-tab.active {
+      background: white;
+      color: var(--jam-navy);
+      border-bottom: 3px solid var(--jam-navy);
+    }
+    .step-tab.completed {
+      color: #16a34a;
+    }
+    .form-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .form-card h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--jam-navy);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .form-group {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .required { color: #dc2626; }
+    select, input[type="text"], input[type="date"] {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      color: #1e293b;
+      background: white;
+      width: 100%;
+    }
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--jam-navy);
+      box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.15);
+    }
+    select:disabled {
+      background: #f1f5f9;
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+    .btn-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 24px;
+    }
+    .btn {
+      padding: 10px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--jam-navy);
+      color: white;
+    }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+    }
+    .btn-submit {
+      background: #16a34a;
+      color: white;
+    }
+    .declaration-box {
+      background: #fefce8;
+      border: 1px solid #fef08a;
+      padding: 16px;
+      border-radius: 6px;
+      margin-top: 16px;
+      font-size: 13px;
+      display: flex;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <span>Indian Institute of Technology (Organizing Institute)</span>
+    <span>JAM 2027 Official Portal</span>
+  </div>
+
+  <div class="header">
+    <div style="font-size: 28px;">🏛️</div>
+    <div>
+      <h1>JAM 2027 — Online Application Processing System (JOAPS)</h1>
+      <p>Joint Admission test for Masters 2027</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+      <div class="step-tab active" id="tab-step-1">Step 1: Exam Details &amp; City Preferences</div>
+      <div class="step-tab" id="tab-step-2">Step 2: Personal &amp; Qualification Details</div>
+      <div class="step-tab" id="tab-step-3">Step 3: Document Uploads &amp; Declaration</div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         PAGE 1: Examination Preferences
+    ═══════════════════════════════════════════════════════════════ -->
+    <div id="jam-page-1">
+      <div class="form-card">
+        <h2>Choice of Test Papers</h2>
+        <div class="form-group">
+          <label for="jam_paper">Select JAM 2027 Paper <span class="required">*</span></label>
+          <select id="jam_paper" name="jam_paper">
+            <option value="">-- Select JAM Paper --</option>
+            <option value="Biotechnology (BT)">Biotechnology (BT)</option>
+            <option value="Chemistry (CY)">Chemistry (CY)</option>
+            <option value="Economics (EN)">Economics (EN)</option>
+            <option value="Geology (GG)">Geology (GG)</option>
+            <option value="Mathematics (MA)">Mathematics (MA)</option>
+            <option value="Mathematical Statistics (MS)">Mathematical Statistics (MS)</option>
+            <option value="Physics (PH)">Physics (PH)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h2>Choice of Examination Cities</h2>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">
+          Select three cities in order of preference.
+        </p>
+
+        <div class="form-group">
+          <label for="exam_city_1">Choice of Examination City 1 <span class="required">*</span></label>
+          <select id="exam_city_1" name="exam_city_1">
+            <option value="">-- Select First Choice City --</option>
+            <option value="Bengaluru">Bengaluru (IISc)</option>
+            <option value="Mumbai">Mumbai (IIT Bombay)</option>
+            <option value="Delhi">Delhi (IIT Delhi)</option>
+            <option value="Hyderabad">Hyderabad</option>
+            <option value="Kolkata">Kolkata</option>
+            <option value="Chennai">Chennai (IIT Madras)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="exam_city_2">Choice of Examination City 2 <span class="required">*</span></label>
+          <select id="exam_city_2" name="exam_city_2">
+            <option value="">-- Select Second Choice City --</option>
+            <option value="Bengaluru">Bengaluru (IISc)</option>
+            <option value="Mumbai">Mumbai (IIT Bombay)</option>
+            <option value="Delhi">Delhi (IIT Delhi)</option>
+            <option value="Hyderabad">Hyderabad</option>
+            <option value="Kolkata">Kolkata</option>
+            <option value="Chennai">Chennai (IIT Madras)</option>
+            <option value="Warangal">Warangal</option>
+            <option value="Pune">Pune</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="exam_city_3">Choice of Examination City 3 <span class="required">*</span></label>
+          <select id="exam_city_3" name="exam_city_3">
+            <option value="">-- Select Third Choice City --</option>
+            <option value="Bengaluru">Bengaluru (IISc)</option>
+            <option value="Mumbai">Mumbai (IIT Bombay)</option>
+            <option value="Delhi">Delhi (IIT Delhi)</option>
+            <option value="Hyderabad">Hyderabad</option>
+            <option value="Kolkata">Kolkata</option>
+            <option value="Chennai">Chennai (IIT Madras)</option>
+            <option value="Warangal">Warangal</option>
+            <option value="Pune">Pune</option>
+            <option value="Vijayawada">Vijayawada</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <div></div>
+        <button type="button" class="btn btn-primary" id="btn-save-next-1">
+          Save &amp; Next ➔
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         PAGE 2: Personal & Education Details
+    ═══════════════════════════════════════════════════════════════ -->
+    <div id="jam-page-2" style="display: none;">
+      <div class="form-card">
+        <h2>Personal Details</h2>
+        <div class="form-group">
+          <label for="applicant_name">Candidate's Full Name <span class="required">*</span></label>
+          <input type="text" id="applicant_name" name="candidate_name" placeholder="Full name as in certificate">
+        </div>
+        <div class="form-group">
+          <label for="first_name">First Name <span class="required">*</span></label>
+          <input type="text" id="first_name" name="firstName" placeholder="First Name">
+        </div>
+        <div class="form-group">
+          <label for="middle_name">Middle Name</label>
+          <input type="text" id="middle_name" name="middleName" placeholder="Middle Name">
+        </div>
+        <div class="form-group">
+          <label for="last_name">Surname / Last Name <span class="required">*</span></label>
+          <input type="text" id="last_name" name="lastName" placeholder="Surname">
+        </div>
+        <div class="form-group">
+          <label for="applicant_dob">Date of Birth <span class="required">*</span></label>
+          <input type="date" id="applicant_dob" name="dob">
+        </div>
+        <div class="form-group">
+          <label for="category_select">Category <span class="required">*</span></label>
+          <select id="category_select" name="category">
+            <option value="">-- Select Category --</option>
+            <option value="General">General</option>
+            <option value="EWS">EWS (Economically Weaker Section)</option>
+            <option value="OBC-NCL">OBC-NCL</option>
+            <option value="SC">SC</option>
+            <option value="ST">ST</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h2>Qualifying Education Details (Class 10 / SSC)</h2>
+        <div class="form-group">
+          <label for="ssc_roll_no">Class 10 Roll Number <span class="required">*</span></label>
+          <input type="text" id="ssc_roll_no" name="ssc_roll_no" placeholder="Roll Number / Seat Number">
+        </div>
+        <div class="form-group">
+          <label for="ssc_board">Board of Examination <span class="required">*</span></label>
+          <input type="text" id="ssc_board" name="ssc_board" placeholder="e.g. CBSE / ICSE / State Board">
+        </div>
+        <div class="form-group">
+          <label for="ssc_year">Passing Year <span class="required">*</span></label>
+          <input type="text" id="ssc_year" name="ssc_year" placeholder="YYYY">
+        </div>
+        <div class="form-group">
+          <label for="ssc_percentage">Percentage / CGPA <span class="required">*</span></label>
+          <input type="text" id="ssc_percentage" name="ssc_percentage" placeholder="e.g. 91.4">
+        </div>
+      </div>
+
+      <div class="declaration-box">
+        <input type="checkbox" id="legal_declaration" name="declaration">
+        <label for="legal_declaration">
+          I hereby declare that all information furnished is authentic and correct. (E-Fill will never check this automatically).
+        </label>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-back-2">
+          ⬅ Back
+        </button>
+        <button type="button" class="btn btn-submit" id="btn-final-submit">
+          Final Submit Application
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Submit counter for safety invariant verification (Must remain 0)
+    window.__efill_submit_count = 0;
+    document.getElementById('btn-final-submit').addEventListener('click', () => {
+      window.__efill_submit_count++;
+      alert('Application submitted!');
+    });
+
+    // Multi-page navigation (Manual user progression)
+    const page1 = document.getElementById('jam-page-1');
+    const page2 = document.getElementById('jam-page-2');
+    const tab1 = document.getElementById('tab-step-1');
+    const tab2 = document.getElementById('tab-step-2');
+
+    document.getElementById('btn-save-next-1').addEventListener('click', () => {
+      page1.style.display = 'none';
+      page2.style.display = 'block';
+      tab1.className = 'step-tab completed';
+      tab2.className = 'step-tab active';
+      document.title = 'JAM 2027 — Step 2: Personal & Qualification Details';
+      window.dispatchEvent(new Event('hashchange'));
+    });
+
+    document.getElementById('btn-back-2').addEventListener('click', () => {
+      page2.style.display = 'none';
+      page1.style.display = 'block';
+      tab2.className = 'step-tab';
+      tab1.className = 'step-tab active';
+      document.title = 'JAM 2027 — Joint Admission test for Masters (Online Application Portal)';
+    });
+  </script>
+
+  <script src="../core/canonical-schema.js"></script>
+  <script src="../core/normalizer.js"></script>
+  <script src="../core/app-profiles.js"></script>
+  <script src="../core/page-classifier.js"></script>
+  <script src="../core/information-profile.js"></script>
+  <script src="../core/profile-manager.js"></script>
+  <script src="../core/conflict-engine.js"></script>
+  <script src="../core/file-validator.js"></script>
+  <script src="../core/document-field-map.js"></script>
+  <script src="../core/document-classifier.js"></script>
+  <script src="../core/ocr-engine.js"></script>
+  <script src="../core/document-extractor.js"></script>
+  <script src="../core/document-source-manager.js"></script>
+  <script src="../core/application-mapping-engine.js"></script>
+  <script src="../core/availability-engine.js"></script>
+  <script src="../core/source-selector.js"></script>
+  <script src="../core/application-plan.js"></script>
+  <script src="../core/conversational-assistant.js"></script>
+  <script src="../content/field-reader.js"></script>
+  <script src="../content/form-detector.js"></script>
+  <script src="../content/indicator.js"></script>
+  <script src="../content/autofill.js"></script>
+  <script src="../content/content.js"></script>
+</body>
+</html>

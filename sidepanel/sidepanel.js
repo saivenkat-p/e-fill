@@ -26,6 +26,8 @@
   function getUploadPreparationEngine() { return window.EFillUploadPreparationEngine?.uploadPreparationEngine; }
   function getDocumentRequirementEngine() { return window.EFillDocumentRequirementEngine?.documentRequirementEngine; }
   function getFileValidator() { return window.EFillFileValidator?.fileValidator; }
+  function getApplicationPlan() { return window.EFillApplicationPlan?.applicationPlan; }
+  function getConversationalAssistant() { return window.EFillConversationalAssistant?.conversationalAssistant; }
 
   // ── State ──────────────────────────────────────────────────────────────────
   let currentInfoProfile = null;   // InformationProfile instance (v2)
@@ -207,6 +209,7 @@
   const btnCancelEditField     = document.getElementById('btn-cancel-edit-field');
   const btnSaveEditField       = document.getElementById('btn-save-edit-field');
   const editFieldTitle         = document.getElementById('edit-field-title');
+  const editFieldNameInput     = document.getElementById('edit-field-name-input');
   const editFieldLabel         = document.getElementById('edit-field-label');
   const editFieldValueInput    = document.getElementById('edit-field-value-input');
   const editFieldProvenanceHint = document.getElementById('edit-field-provenance-hint');
@@ -678,11 +681,12 @@
           closeQuickEditModal();
           return;
         }
+        const newLabel = editFieldNameInput ? editFieldNameInput.value.trim() : (pendingQuickEditTarget.label || '');
         const val = editFieldValueInput ? editFieldValueInput.value.trim() : '';
         const onSave = pendingQuickEditTarget.onSave;
         closeQuickEditModal();
         if (typeof onSave === 'function') {
-          await onSave(val);
+          await onSave(val, newLabel);
         }
       });
     }
@@ -692,7 +696,12 @@
     if (!modalEditField) return;
     pendingQuickEditTarget = { fieldId, label, currentValue, onSave };
     if (editFieldTitle) editFieldTitle.textContent = `Edit ${label || fieldId}`;
-    if (editFieldLabel) editFieldLabel.textContent = label || fieldId;
+    if (editFieldNameInput) {
+      editFieldNameInput.value = label || fieldId;
+    }
+    if (editFieldLabel) {
+      editFieldLabel.textContent = label || fieldId;
+    }
     if (editFieldValueInput) {
       editFieldValueInput.value = currentValue || '';
     }
@@ -801,7 +810,7 @@
     const ocrEngine = window.EFillOcrEngine?.ocrEngine || window.ocrEngine;
     if (ocrEngine && typeof ocrEngine.recognize === 'function') {
       try {
-        const ocrRes = await ocrEngine.recognize(file);
+        const ocrRes = await ocrEngine.recognize(file, { filename: file.name, mimeType: file.type });
         if (ocrRes && ocrRes.text && ocrRes.text.trim().length > 5) {
           return ocrRes;
         }
@@ -827,8 +836,14 @@
 
       // PDF
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name) || (bytes.length >= 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46)) {
-        const pdfText = extractTextFromPdfBytes(bytes);
-        if (pdfText && pdfText.trim().length > 10) return { text: pdfText, blocks: [] };
+        let pdfText = '';
+        if (ocrEngine && typeof ocrEngine._extractPdfText === 'function') {
+          pdfText = ocrEngine._extractPdfText(bytes, { filename: file.name, mimeType: file.type });
+        }
+        if (!pdfText || pdfText.trim().length <= 5) {
+          pdfText = extractTextFromPdfBytes(bytes);
+        }
+        if (pdfText && pdfText.trim().length > 5) return { text: pdfText, blocks: [] };
       }
 
       // Binary runs
@@ -1099,27 +1114,13 @@
     // 2. Check for conflicts
     const conflictEng = getConflictEngine();
     const comparison = conflictEng ? conflictEng.compare(extracted.fields, currentInfoProfile) : null;
-    if (comparison && comparison.conflicts && comparison.conflicts.length > 0) {
-      const c = comparison.conflicts[0];
-      pendingConflictData = {
-        ...c,
-        sourceDocumentType: extracted.docType,
-        documentName: file.name,
-        targetFieldId,
-        targetCanonicalId
-      };
-      if (conflictFieldTitle) conflictFieldTitle.textContent = `Field: ${c.label || c.fieldId}`;
-      if (conflictExistingVal) conflictExistingVal.textContent = c.existingValue || '(empty)';
-      if (conflictDocVal) conflictDocVal.textContent = c.incomingValue || '(empty)';
-      if (modalConflict) modalConflict.style.display = 'flex';
-      return;
-    }
+    const conflicts = comparison?.conflicts || [];
 
-    // 3. No conflict -> Show Document Processed Review modal
-    showDocumentProcessedModal(file, extracted, targetFieldId, targetCanonicalId);
+    // Always show Document Processed Review modal so the user can review all extracted fields (including Student Name)
+    showDocumentProcessedModal(file, extracted, targetFieldId, targetCanonicalId, conflicts);
   }
 
-  function showDocumentProcessedModal(file, extracted, targetFieldId = null, targetCanonicalId = null) {
+  function showDocumentProcessedModal(file, extracted, targetFieldId = null, targetCanonicalId = null, conflicts = []) {
     if (!modalDocProcessed) {
       mergeExtractedDataIntoCurrentProfile(extracted.fields);
       return;
@@ -1127,38 +1128,187 @@
 
     const docMap = window.EFillDocumentFieldMap;
     const docInfo = docMap && docMap.SUPPORTED_DOCUMENTS ? docMap.SUPPORTED_DOCUMENTS[extracted.docType] : null;
-    const docTypeName = docInfo ? docInfo.name : (extracted.docType || 'Document');
+    const docTypeName = docInfo ? (docInfo.label || docInfo.name) : (extracted.docType || 'Document');
 
     const personName = currentProfileDisplayNameEl?.textContent || 'Selected Person';
-    if (docProcessedTitle) docProcessedTitle.textContent = `Document: ${docTypeName}`;
+    if (docProcessedTitle) docProcessedTitle.textContent = `Document Processed: ${docTypeName}`;
     if (docProcessedTargetName) docProcessedTargetName.textContent = personName;
     if (docProcessedTypeLabel) docProcessedTypeLabel.textContent = docTypeName;
 
-    const fields = extracted.fields || {};
+    const labelMap = {
+      edu_candidate_name: 'Student Name',
+      student_name: 'Student Name',
+      candidate_name: 'Student Name',
+      full_name: 'Student Name',
+      edu_father_name: "Father's Name",
+      father_name: "Father's Name",
+      edu_mother_name: "Mother's Name",
+      mother_name: "Mother's Name",
+      dob: 'Date of Birth',
+      edu_institution: 'School',
+      institution: 'School',
+      school: 'School',
+      edu_board: 'Board',
+      board: 'Board',
+      edu_year: 'Year of Passing',
+      year_of_passing: 'Year of Passing',
+      edu_roll_number: 'Roll Number',
+      roll_number: 'Roll Number',
+      edu_marks: 'Marks Obtained',
+      marks_obtained: 'Marks Obtained',
+      edu_max_marks: 'Maximum Marks',
+      maximum_marks: 'Maximum Marks',
+      edu_percentage: 'Percentage',
+      percentage: 'Percentage',
+      edu_grade: 'Division',
+      grade: 'Division',
+      division: 'Division',
+      edu_medium: 'Medium',
+      medium: 'Medium',
+      edu_certificate_number: 'Certificate Number',
+      certificate_number: 'Certificate Number',
+      edu_registration_number: 'Registration Number',
+      registration_number: 'Registration Number',
+      subject_first_language: 'First Language Marks (Telugu)',
+      subject_second_language: 'Second Language Marks (Hindi)',
+      subject_third_language: 'Third Language Marks (English)',
+      subject_mathematics: 'Mathematics Marks',
+      subject_science: 'Science Marks',
+      subject_social: 'Social Studies Marks',
+      identification_marks: 'Marks of Identification'
+    };
+
+    const preferredOrder = [
+      'edu_candidate_name', 'student_name', 'candidate_name', 'full_name',
+      'edu_father_name', 'father_name',
+      'edu_mother_name', 'mother_name',
+      'dob',
+      'edu_institution', 'school', 'institution',
+      'edu_board', 'board',
+      'edu_year', 'year_of_passing',
+      'edu_roll_number', 'roll_number',
+      'edu_marks', 'marks_obtained',
+      'edu_max_marks', 'maximum_marks',
+      'edu_percentage', 'percentage',
+      'edu_grade', 'grade', 'division',
+      'edu_medium', 'medium',
+      'edu_certificate_number', 'certificate_number',
+      'edu_registration_number', 'registration_number',
+      'subject_first_language', 'subject_second_language', 'subject_third_language',
+      'subject_mathematics', 'subject_science', 'subject_social',
+      'identification_marks'
+    ];
+
+    const rawFields = extracted.fields || {};
+    const normalizedFields = {};
+    const isEduDoc = extracted.docType === 'SSC_10TH' || extracted.docType === 'INTER_12TH' || extracted.docType === 'DEGREE';
+
+    // 1. Deduplicate & consolidate to canonical fields
+    for (const [k, fObj] of Object.entries(rawFields)) {
+      const v = typeof fObj === 'object' && fObj !== null ? fObj.value : fObj;
+      if (!v || !String(v).trim()) continue;
+
+      let canonicalKey = k;
+      if (isEduDoc) {
+        if (k === 'full_name' || k === 'student_name' || k === 'candidate_name') canonicalKey = 'edu_candidate_name';
+        else if (k === 'father_name') canonicalKey = 'edu_father_name';
+        else if (k === 'mother_name') canonicalKey = 'edu_mother_name';
+        else if (k === 'certificate_number') canonicalKey = 'edu_certificate_number';
+        else if (k === 'registration_number') canonicalKey = 'edu_registration_number';
+        else if (k === 'grade' || k === 'division') canonicalKey = 'edu_grade';
+        else if (k === 'medium') canonicalKey = 'edu_medium';
+        else if (k === 'school' || k === 'institution') canonicalKey = 'edu_institution';
+        else if (k === 'board') canonicalKey = 'edu_board';
+        else if (k === 'year_of_passing' || k === 'passing_year') canonicalKey = 'edu_year';
+        else if (k === 'roll_number') canonicalKey = 'edu_roll_number';
+        else if (k === 'marks_obtained' || k === 'marks') canonicalKey = 'edu_marks';
+        else if (k === 'maximum_marks' || k === 'max_marks') canonicalKey = 'edu_max_marks';
+        else if (k === 'percentage') canonicalKey = 'edu_percentage';
+      }
+
+      // Skip unhelpful internal name chunks if edu_candidate_name is already extracted
+      if (isEduDoc && (k === 'first_name' || k === 'middle_name' || k === 'last_name') && (rawFields.edu_candidate_name || rawFields.full_name)) {
+        continue;
+      }
+
+      if (!normalizedFields[canonicalKey]) {
+        normalizedFields[canonicalKey] = {
+          cid: canonicalKey,
+          value: String(v).trim(),
+          label: labelMap[canonicalKey] || (typeof fObj === 'object' && fObj.label ? fObj.label : canonicalKey.replace(/^edu_/, '').replace(/_/g, ' ')),
+          sensitive: typeof fObj === 'object' ? !!fObj.sensitive : false,
+          confidence: typeof fObj === 'object' ? (fObj.confidence || 0.95) : 0.95,
+          category: typeof fObj === 'object' ? fObj.category : null
+        };
+      }
+    }
+
+    // Sort entries according to preferred order
+    const sortedEntries = Object.entries(normalizedFields).sort((a, b) => {
+      const idxA = preferredOrder.indexOf(a[0]);
+      const idxB = preferredOrder.indexOf(b[0]);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a[0].localeCompare(b[0]);
+    });
+
+    if (docProcessedFoundContainer) docProcessedFoundContainer.innerHTML = '';
     const newItems = [];
     const existingItems = [];
 
-    if (docProcessedFoundContainer) docProcessedFoundContainer.innerHTML = '';
+    // Instruction banner
+    const docProcessedBannerEl = document.getElementById('doc-processed-banner');
+    if (docProcessedBannerEl) {
+      if (conflicts && conflicts.length > 0) {
+        docProcessedBannerEl.innerHTML = '⚠️ <strong>Notice:</strong> Some extracted information differs from your current profile. Review below and choose what to save:';
+        docProcessedBannerEl.style.color = '#fbbf24';
+      } else {
+        docProcessedBannerEl.textContent = 'Review information found in this document before saving to profile:';
+        docProcessedBannerEl.style.color = '';
+      }
+    }
 
-    for (const [cid, fieldObj] of Object.entries(fields)) {
-      const val = typeof fieldObj === 'object' && fieldObj !== null ? fieldObj.value : fieldObj;
-      const label = (typeof fieldObj === 'object' && fieldObj.label) ? fieldObj.label : cid;
-      const isSensitive = typeof fieldObj === 'object' ? fieldObj.sensitive : false;
-      const confidence = typeof fieldObj === 'object' ? fieldObj.confidence : 0.95;
-      const existingEntry = currentInfoProfile ? currentInfoProfile.getField(cid) : null;
-      const isNew = !existingEntry || !existingEntry.value;
+    sortedEntries.forEach(([cid, item]) => {
+      const val = item.value;
+      const label = item.label;
+      const confidence = item.confidence;
 
-      let displayVal = val || '';
-      if (isSensitive && val && val.length > 4) {
-        displayVal = '•••• •••• ' + val.slice(-4);
+      // Find if an existing profile field exists or differs
+      let existingVal = '';
+      let existingLabel = '';
+      let hasDifference = false;
+
+      if (currentInfoProfile) {
+        let existingF = currentInfoProfile.getField(cid);
+        const hasExistingValue = existingF && existingF.value && String(existingF.value).trim();
+        if (!hasExistingValue && isEduDoc) {
+          if (cid === 'edu_candidate_name') {
+            const fullF = currentInfoProfile.getField('full_name');
+            const fnF = currentInfoProfile.getField('first_name');
+            existingF = (fullF && fullF.value && String(fullF.value).trim()) ? fullF : ((fnF && fnF.value && String(fnF.value).trim()) ? fnF : null);
+            if (existingF) existingLabel = existingF.canonicalField === 'first_name' ? 'First Name' : 'Full Name';
+          } else if (cid === 'edu_father_name') {
+            const f = currentInfoProfile.getField('father_name');
+            if (f && f.value && String(f.value).trim()) { existingF = f; existingLabel = "Father's Name"; }
+          } else if (cid === 'edu_mother_name') {
+            const m = currentInfoProfile.getField('mother_name');
+            if (m && m.value && String(m.value).trim()) { existingF = m; existingLabel = "Mother's Name"; }
+          }
+        }
+        if (existingF && existingF.value && String(existingF.value).trim()) {
+          existingVal = String(existingF.value).trim();
+          if (!existingLabel) existingLabel = label;
+          if (existingVal.toLowerCase() !== val.toLowerCase()) {
+            hasDifference = true;
+          }
+        }
       }
 
-      if (val) {
-        if (isNew) {
-          newItems.push({ cid, label, val, displayVal, fieldObj });
-        } else {
-          existingItems.push({ cid, label, val, displayVal, fieldObj });
-        }
+      if (existingVal && !hasDifference) {
+        existingItems.push({ cid, label, val });
+      } else {
+        newItems.push({ cid, label, val, hasDifference, existingVal, existingLabel });
       }
 
       if (docProcessedFoundContainer) {
@@ -1168,40 +1318,51 @@
           ? `<span class="badge-form-match" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: auto;">🎯 Autofills "${escapeHtml(matchingProp.label || matchingProp.canonicalId)}"</span>`
           : `<span class="badge-profile-only" style="background: rgba(99, 102, 241, 0.15); color: #a5b4fc; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: auto;">👤 Adds to Profile</span>`;
 
+        let diffHtml = '';
+        if (hasDifference) {
+          diffHtml = `
+            <div class="processed-diff-indicator">
+              <span class="diff-doc-tag">Document Value: <strong>${escapeHtml(val)}</strong></span>
+              <span class="diff-existing-tag">Existing Profile (${escapeHtml(existingLabel)}): <strong>${escapeHtml(existingVal)}</strong></span>
+            </div>
+          `;
+        }
+
         const itemRow = document.createElement('div');
         itemRow.className = `processed-field-row ${isTarget || matchingProp ? 'target-rec-highlight' : ''}`;
-        itemRow.style.cssText = 'padding: 8px 10px; margin-bottom: 6px; border-radius: 6px; background: var(--bg-surface); border: 1px solid var(--border-color);';
+        itemRow.style.cssText = 'padding: 8px 10px; margin-bottom: 6px; border-radius: 6px; background: var(--bg-surface); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px;';
         itemRow.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
             <label class="processed-field-label" style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;">
               <input type="checkbox" class="doc-field-checkbox" data-cid="${escapeHtml(cid)}" checked>
-              <span class="field-title" style="font-weight: 600; font-size: 12px;">${escapeHtml(label)}${isTarget ? ' (Recommended)' : ''}</span>
+              <span class="field-title" style="font-weight: 600; font-size: 12px; color: #f1f5f9;">${escapeHtml(label)}${hasDifference ? ' <span class="diff-conflict-badge">Differs from profile</span>' : ''}</span>
             </label>
             ${matchBadge}
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
             <input type="text" class="input doc-field-val-input" data-cid="${escapeHtml(cid)}"
               value="${escapeHtml(val || '')}" placeholder="Enter value" style="flex: 1; font-size: 12px; padding: 4px 8px;">
-            <span class="confidence-tag" style="font-size: 10px;">${Math.round(confidence * 100)}%</span>
+            <span class="confidence-tag" style="font-size: 10px; color: #94a3b8;">${Math.round(confidence * 100)}%</span>
           </div>
+          ${diffHtml}
         `;
         docProcessedFoundContainer.appendChild(itemRow);
       }
-    }
+    });
 
     if (docProcessedNewList) {
       docProcessedNewList.innerHTML = newItems.length > 0
-        ? newItems.map(i => `<li><strong>${escapeHtml(i.label)}</strong>: ${escapeHtml(i.displayVal)}</li>`).join('')
+        ? newItems.map(i => `<li><strong>${escapeHtml(i.label)}</strong>: ${escapeHtml(i.val)}${i.hasDifference ? ` <em style="color:#fbbf24;">(differs from ${escapeHtml(i.existingLabel)}: "${escapeHtml(i.existingVal)}")</em>` : ''}</li>`).join('')
         : '<li class="text-muted">No new fields found</li>';
     }
 
     if (docProcessedExistingList) {
       docProcessedExistingList.innerHTML = existingItems.length > 0
-        ? existingItems.map(i => `<li><strong>${escapeHtml(i.label)}</strong>: ${escapeHtml(i.displayVal)} <span class="existing-note">(already present, no change)</span></li>`).join('')
+        ? existingItems.map(i => `<li><strong>${escapeHtml(i.label)}</strong>: ${escapeHtml(i.val)} <span class="existing-note">(already in profile)</span></li>`).join('')
         : '<li class="text-muted">None</li>';
     }
 
-    pendingProcessedDoc = { file, extracted, docTypeName, targetFieldId, targetCanonicalId };
+    pendingProcessedDoc = { file, extracted: { ...extracted, fields: normalizedFields }, docTypeName, targetFieldId, targetCanonicalId };
     modalDocProcessed.style.display = 'flex';
   }
 
@@ -1233,9 +1394,10 @@
 
     const newlyAddedFieldIds = [];
 
-    // Find or create education record if saving education fields
+    // Find or create education record if saving education fields or educational document
     let targetEduRecordId = null;
-    const hasEduFields = Object.keys(extracted.fields || {}).some(cid => checkedCids.has(cid) && cid.startsWith('edu_'));
+    const isEduDoc = extracted.docType === 'SSC_10TH' || extracted.docType === 'INTER_12TH' || extracted.docType === 'DEGREE';
+    const hasEduFields = isEduDoc || Object.keys(extracted.fields || {}).some(cid => checkedCids.has(cid) && cid.startsWith('edu_'));
     if (hasEduFields) {
       let qual = '10th / SSC';
       if (extracted.docType === 'INTER_12TH') qual = '12th / Intermediate';
@@ -1262,7 +1424,7 @@
       const category = (typeof fieldObj === 'object' && fieldObj.category) ? fieldObj.category : null;
       const confidence = (typeof fieldObj === 'object' && fieldObj.confidence) ? fieldObj.confidence : 1.0;
       const sensitive = (typeof fieldObj === 'object' && fieldObj.sensitive) ? fieldObj.sensitive : false;
-      const eduRecId = cid.startsWith('edu_') ? targetEduRecordId : null;
+      const eduRecId = (cid.startsWith('edu_') || (targetEduRecordId && isEduDoc && (cid.startsWith('subject_') || cid === 'identification_marks'))) ? targetEduRecordId : null;
 
       currentInfoProfile.setField(
         cid,
@@ -1279,15 +1441,50 @@
           documentName: file.name
         }
       );
+
+      // If educational document, mirror student, father, mother into the education record AND personal profile
+      if (targetEduRecordId && isEduDoc) {
+        if (cid === 'full_name' || cid === 'student_name' || cid === 'edu_candidate_name') {
+          currentInfoProfile.setField('edu_candidate_name', finalVal, 'USER_CONFIRMED', `Extracted from ${docTypeName}`, targetEduRecordId, 'education');
+          currentInfoProfile.setField('full_name', finalVal, 'USER_CONFIRMED', `Extracted from ${docTypeName}`);
+        } else if (cid === 'father_name' || cid === 'edu_father_name') {
+          currentInfoProfile.setField('edu_father_name', finalVal, 'USER_CONFIRMED', `Extracted from ${docTypeName}`, targetEduRecordId, 'education');
+          currentInfoProfile.setField('father_name', finalVal, 'USER_CONFIRMED', `Extracted from ${docTypeName}`);
+        } else if (cid === 'mother_name' || cid === 'edu_mother_name') {
+          currentInfoProfile.setField('edu_mother_name', finalVal, 'USER_CONFIRMED', `Extracted from ${docTypeName}`, targetEduRecordId, 'education');
+          currentInfoProfile.setField('mother_name', finalVal, 'USER_CONFIRMED', `Extracted from ${docTypeName}`);
+        }
+      }
+
       newlyAddedFieldIds.push(cid);
     }
 
     await saveInformationProfile(true);
-    populateInfoForm();
     closeDocProcessedModal();
-    showSaveToastMessage('Document information saved to profile');
 
-    if (autofillAfterSave) {
+    // Transition clearly to My Information tab so the user immediately sees the saved cards!
+    if (tabInfoBtn && viewInfo) {
+      if (tabReviewBtn) tabReviewBtn.classList.remove('active');
+      tabInfoBtn.classList.add('active');
+      if (viewReview) viewReview.classList.remove('active');
+      viewInfo.classList.add('active');
+    }
+
+    populateInfoForm();
+
+    const personName = currentProfileDisplayNameEl?.textContent || 'Selected Person';
+    showSaveToastMessage(`✓ Information saved to "${personName}"`);
+
+    // Auto-scroll to Education Records section so individual cards are immediately in view
+    if (isEduDoc || hasEduFields) {
+      expandSection('education');
+      const eduCard = document.querySelector('[data-profile-section="education"]') || document.getElementById('populated-edu-container');
+      if (eduCard) {
+        try { eduCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+      }
+    }
+
+    if (autofillAfterSave && targetFieldId) {
       await applyNewlyExtractedDataToApplication(newlyAddedFieldIds, docTypeName, false, targetFieldId);
     }
   }
@@ -1597,51 +1794,22 @@
   }
 
   function buildEduRecordCard(rec) {
-    const fg = (fid) => {
-      if (!rec.fields || !rec.fields[fid]) return '';
-      return rec.fields[fid].value || '';
-    };
-
     const card = document.createElement('div');
     card.className = 'edu-record-card';
     card.setAttribute('data-edu-id', rec.id);
-    card.innerHTML = `
-      <div class="edu-record-header">
-        <input type="text" class="edu-record-title-input" value="${escapeHtml(rec.qualification || '')}" placeholder="e.g. 10th / SSC, B.Tech" data-edu-qual>
-        <button type="button" class="btn-delete-edu" title="Remove this record">✕</button>
+
+    const header = document.createElement('div');
+    header.className = 'edu-record-header';
+    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0;';
+    header.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 16px;">📜</span>
+        <strong class="edu-record-title" style="font-size: 14px; color: #0f172a;">${escapeHtml(rec.qualification || 'Education Record')}</strong>
       </div>
-      <div class="form-group">
-        <label>Institution / School / College</label>
-        <input type="text" value="${escapeHtml(fg('edu_institution'))}" data-edu-field="edu_institution" placeholder="Name of institution">
-      </div>
-      <div class="form-group">
-        <label>Board / University</label>
-        <input type="text" value="${escapeHtml(fg('edu_board'))}" data-edu-field="edu_board">
-      </div>
-      <div class="form-group">
-        <label>Year of Passing</label>
-        <input type="text" value="${escapeHtml(fg('edu_year'))}" data-edu-field="edu_year" maxlength="4">
-      </div>
-      <div class="form-group">
-        <label>Percentage / CGPA</label>
-        <input type="text" value="${escapeHtml(fg('edu_percentage'))}" data-edu-field="edu_percentage">
-      </div>
-      <div class="form-group">
-        <label>Roll Number</label>
-        <input type="text" value="${escapeHtml(fg('edu_roll_number'))}" data-edu-field="edu_roll_number">
-      </div>
-      <div class="form-group">
-        <label>Marks Obtained</label>
-        <input type="text" value="${escapeHtml(fg('edu_marks'))}" data-edu-field="edu_marks">
-      </div>
-      <div class="form-group">
-        <label>Maximum Marks</label>
-        <input type="text" value="${escapeHtml(fg('edu_max_marks'))}" data-edu-field="edu_max_marks">
-      </div>
+      <button type="button" class="btn-delete-edu" title="Remove this entire record" style="background: none; border: none; color: #ef4444; font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 8px; border-radius: 4px;">✕ Remove Record</button>
     `;
 
-    // Delete button
-    card.querySelector('.btn-delete-edu').addEventListener('click', async () => {
+    header.querySelector('.btn-delete-edu').addEventListener('click', async () => {
       if (confirm(`Remove "${rec.qualification || 'this record'}"?`)) {
         currentInfoProfile.removeEducationRecord(rec.id);
         renderEducationRecords();
@@ -1649,20 +1817,155 @@
         populateInfoForm();
       }
     });
+    card.appendChild(header);
 
-    // Qualification title change
-    card.querySelector('[data-edu-qual]').addEventListener('change', (e) => {
-      rec.qualification = e.target.value.trim();
+    const fieldsContainer = document.createElement('div');
+    fieldsContainer.className = 'edu-fields-container';
+    fieldsContainer.style.cssText = 'padding: 8px 12px; display: flex; flex-direction: column; gap: 8px;';
+
+    const labelMap = {
+      edu_candidate_name: 'Student Name',
+      student_name: 'Student Name',
+      candidate_name: 'Student Name',
+      full_name: 'Student Name',
+      edu_father_name: "Father's Name",
+      father_name: "Father's Name",
+      edu_mother_name: "Mother's Name",
+      mother_name: "Mother's Name",
+      edu_institution: 'School',
+      institution: 'School',
+      school: 'School',
+      edu_board: 'Board',
+      board: 'Board',
+      edu_year: 'Year of Passing',
+      year_of_passing: 'Year of Passing',
+      edu_roll_number: 'Roll Number',
+      roll_number: 'Roll Number',
+      edu_marks: 'Marks Obtained',
+      marks_obtained: 'Marks Obtained',
+      edu_max_marks: 'Maximum Marks',
+      maximum_marks: 'Maximum Marks',
+      edu_percentage: 'Percentage',
+      percentage: 'Percentage',
+      edu_grade: 'Division',
+      grade: 'Division',
+      division: 'Division',
+      edu_medium: 'Medium',
+      medium: 'Medium',
+      edu_certificate_number: 'Certificate Number',
+      certificate_number: 'Certificate Number',
+      edu_registration_number: 'Registration Number',
+      registration_number: 'Registration Number',
+      subject_first_language: 'First Language (Telugu)',
+      subject_second_language: 'Second Language (Hindi)',
+      subject_third_language: 'Third Language (English)',
+      subject_mathematics: 'Mathematics',
+      subject_science: 'General Science',
+      subject_social: 'Social Studies',
+      identification_marks: 'Marks of Identification',
+      marks_of_identification: 'Marks of Identification'
+    };
+
+    const preferredOrder = [
+      'edu_candidate_name', 'student_name', 'candidate_name', 'full_name',
+      'edu_father_name', 'father_name',
+      'edu_mother_name', 'mother_name',
+      'edu_institution', 'school', 'institution',
+      'edu_board', 'board',
+      'edu_year', 'year_of_passing',
+      'edu_roll_number', 'roll_number',
+      'edu_marks', 'marks_obtained',
+      'edu_max_marks', 'maximum_marks',
+      'edu_percentage', 'percentage',
+      'edu_grade', 'grade', 'division',
+      'edu_medium', 'medium',
+      'edu_certificate_number', 'certificate_number',
+      'edu_registration_number', 'registration_number',
+      'subject_first_language', 'subject_second_language', 'subject_third_language',
+      'subject_mathematics', 'subject_science', 'subject_social',
+      'identification_marks', 'marks_of_identification'
+    ];
+
+    const schemaFields = window.EFillCanonicalSchema?.CANONICAL_FIELDS || {};
+    const recFields = rec.fields || {};
+    const fieldEntries = Object.entries(recFields).filter(([fid, f]) => {
+      if (fid === 'edu_qualification') return false;
+      return f && f.value !== undefined && f.value !== null && String(f.value).trim() !== '';
     });
 
-    // Education field inputs
-    card.querySelectorAll('[data-edu-field]').forEach(input => {
-      input.addEventListener('change', (e) => {
-        const fid = input.getAttribute('data-edu-field');
-        currentInfoProfile.updateEducationRecord(rec.id, fid, e.target.value.trim(), 'USER_EDITED', 'User entry');
+    fieldEntries.sort((a, b) => {
+      const idxA = preferredOrder.indexOf(a[0]);
+      const idxB = preferredOrder.indexOf(b[0]);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a[0].localeCompare(b[0]);
+    });
+
+    if (fieldEntries.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.className = 'empty-edu-fields';
+      emptyMsg.style.cssText = 'padding: 12px; color: #94a3b8; font-size: 12px; font-style: italic;';
+      emptyMsg.textContent = 'No individual fields saved for this record yet.';
+      fieldsContainer.appendChild(emptyMsg);
+    } else {
+      fieldEntries.forEach(([fid, fieldObj]) => {
+        const label = fieldObj.label || labelMap[fid] || schemaFields[fid]?.label || fid.replace(/^edu_/, '').replace(/_/g, ' ');
+        const row = document.createElement('div');
+        row.className = 'profile-field-item edu-field-card';
+        row.setAttribute('data-edu-field', fid);
+        row.setAttribute('data-field-id', fid);
+
+        const val = String(fieldObj.value || '');
+        const sourceLabel = formatProvenanceLabel(fieldObj.provenance, fieldObj.source);
+
+        row.innerHTML = `
+          <div class="field-meta">
+            <span class="field-label edu-field-label">${escapeHtml(label)}</span>
+            <div class="field-value-row">
+              <span class="field-value edu-field-value">${escapeHtml(val)}</span>
+            </div>
+            <span class="field-source-hint">Source: ${escapeHtml(sourceLabel)}</span>
+          </div>
+          <div class="field-actions">
+            <button type="button" class="btn-field-action btn-field-edit btn-edit-edu-field" title="Edit field value">✏️</button>
+            <button type="button" class="btn-field-action btn-field-delete btn-delete-edu-field" title="Delete field">🗑️</button>
+          </div>
+        `;
+
+        // ✏️ Edit
+        row.querySelector('.btn-field-edit').addEventListener('click', () => {
+          openQuickEditModal({
+            fieldId: fid,
+            label,
+            currentValue: val,
+            onSave: async (newVal, newLabel) => {
+              currentInfoProfile.updateEducationRecord(rec.id, fid, newVal, 'USER_EDITED', 'Edited in My Information', newLabel);
+              await saveInformationProfile(true);
+              populateInfoForm();
+              showSaveToastMessage(`Updated ${newLabel || label}`);
+            }
+          });
+        });
+
+        // 🗑️ Delete
+        row.querySelector('.btn-field-delete').addEventListener('click', () => {
+          requestFieldDeletion({
+            id: fid,
+            label,
+            value: val,
+            isCustom: false,
+            isSensitive: false,
+            educationRecordId: rec.id,
+            domInput: null
+          });
+        });
+
+        fieldsContainer.appendChild(row);
       });
-    });
+    }
 
+    card.appendChild(fieldsContainer);
     return card;
   }
 
@@ -1959,9 +2262,11 @@
       return;
     }
 
-    const { id, isCustom, domInput } = pendingDeletionTarget;
+    const { id, isCustom, educationRecordId, domInput } = pendingDeletionTarget;
 
-    if (isCustom) {
+    if (educationRecordId) {
+      currentInfoProfile.clearField(id, educationRecordId);
+    } else if (isCustom) {
       currentInfoProfile.removeCustomField(id);
       const customEl = domInput || document.querySelector(`[data-custom-field="${id}"]`);
       if (customEl) customEl.value = '';
@@ -2013,7 +2318,7 @@
 
     renderProposals(currentProposals);
     updateSummaryBar(currentProposals);
-    updateApprovedCount();
+    updateActionBar();
   }
 
   function expandSection(sectionName) {
@@ -2205,14 +2510,57 @@
 
     lastScanData = scanData;
 
+    // Update and evaluate Application Plan
+    const appPlan = getApplicationPlan();
+    if (appPlan) {
+      appPlan.addPage(scanData);
+      if (currentInfoProfile) {
+        appPlan.evaluateAgainstProfile(currentInfoProfile);
+      }
+      renderApplicationPlanUI(appPlan, scanData);
+      renderAssistantUI(appPlan, scanData);
+    }
+
     // Use the v2 InformationProfile if available, else legacy flat
     const profileForProposals = currentInfoProfile || currentLegacyProfile;
     const docSourceMgr = getDocumentSourceManager();
     const sessionOverrides = docSourceMgr ? docSourceMgr.getSessionOverrides() : {};
 
+    const planSessionData = {};
+    if (appPlan && appPlan.sessionData) {
+      for (const [k, v] of Object.entries(appPlan.sessionData)) {
+        if (v && v.value) {
+          planSessionData[k] = {
+            value: v.value,
+            source: v.source || 'Application Session Choice',
+            provenance: 'USER_CONFIRMED',
+            isSessionOnly: true
+          };
+        }
+      }
+      if (scanData && scanData.fields) {
+        for (const f of scanData.fields) {
+          const fid = f.id || f.name;
+          const cid = f.canonicalId;
+          const sVal = appPlan.getSessionValue(fid) || (cid ? appPlan.getSessionValue(cid) : null);
+          if (sVal) {
+            const entry = {
+              value: sVal,
+              source: 'Application Session Choice',
+              provenance: 'USER_CONFIRMED',
+              isSessionOnly: true
+            };
+            if (fid) planSessionData[fid] = entry;
+            if (cid) planSessionData[cid] = entry;
+          }
+        }
+      }
+    }
+    const combinedSessionOverrides = { ...sessionOverrides, ...planSessionData };
+
     const selector = getSourceSelector();
     currentProposals = selector
-      ? selector.generateProposals(scanData.fields, profileForProposals, sessionOverrides)
+      ? selector.generateProposals(scanData.fields, profileForProposals, combinedSessionOverrides)
       : [];
 
     // Clear group stacks
@@ -2297,6 +2645,339 @@
       });
       groupUploads.style.display = uploads.length > 0 ? 'flex' : 'none';
       if (gcUploads) gcUploads.textContent = uploads.length;
+    }
+  }
+
+  function renderApplicationPlanUI(appPlan, scanData) {
+    const card = document.getElementById('app-plan-card');
+    const titleEl = document.getElementById('plan-app-title');
+    const stepBadge = document.getElementById('plan-step-badge');
+    const progressTextEl = document.getElementById('plan-progress-text');
+    const sectionsListEl = document.getElementById('plan-sections-list');
+    const sectionsRow = document.getElementById('plan-sections-row');
+    const futureNoticeEl = document.getElementById('plan-future-notice');
+    if (!card || !titleEl || !stepBadge) return;
+
+    card.style.display = 'block';
+    titleEl.textContent = appPlan.applicationName || scanData.title || 'Application Journey';
+
+    const totalSteps = Math.max(appPlan.pages.length, appPlan.totalInferredSteps || 1);
+    stepBadge.textContent = `Step ${appPlan.currentStep} of ${totalSteps}`;
+
+    const discoveredCount = appPlan.sections.filter(s => s.status === 'DISCOVERED').length;
+    const totalKnownSections = appPlan.sections.length;
+    if (progressTextEl) {
+      progressTextEl.textContent = totalKnownSections > discoveredCount
+        ? `Progress: ${discoveredCount} / ${totalKnownSections} sections discovered`
+        : `Progress: ${discoveredCount} section${discoveredCount !== 1 ? 's' : ''} discovered`;
+    }
+
+    if (sectionsListEl) {
+      sectionsListEl.innerHTML = '';
+      appPlan.sections.forEach(sec => {
+        const row = document.createElement('div');
+        row.className = 'plan-section-row';
+        row.style.cssText = 'padding: 6px 8px; border-radius: 6px; font-size: 12px; display: flex; align-items: center; justify-content: space-between;';
+
+        if (sec.status === 'DISCOVERED') {
+          let icon = '✓';
+          let bg = 'background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;';
+          let statusDetail = `${sec.readyCount} / ${sec.fieldCount} ready`;
+
+          if (sec.missingCount > 0) {
+            icon = '⚠️';
+            bg = 'background: #fffbeb; border: 1px solid #fde68a; color: #92400e;';
+            statusDetail = `${sec.missingCount} missing`;
+          } else if (sec.reviewCount > 0) {
+            icon = '🔍';
+            bg = 'background: #f5f3ff; border: 1px solid #ddd6fe; color: #5b21b6;';
+            statusDetail = `${sec.reviewCount} needs review`;
+          }
+
+          row.style.cssText += bg;
+          row.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-weight: 700;">${icon}</span>
+              <span style="font-weight: 600;">${escapeHtml(sec.name)}</span>
+            </div>
+            <span style="font-size: 11px; opacity: 0.9;">${escapeHtml(statusDetail)}</span>
+          `;
+        } else if (sec.status === 'INFERRED') {
+          row.style.cssText += 'background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b;';
+          row.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>○</span>
+              <span>${escapeHtml(sec.name)}</span>
+            </div>
+            <span style="font-size: 10px; font-style: italic;">Inferred from navigation</span>
+          `;
+        }
+
+        sectionsListEl.appendChild(row);
+      });
+    }
+
+    if (futureNoticeEl) {
+      if (!appPlan.hasInferredFutureSteps) {
+        futureNoticeEl.style.display = 'block';
+        futureNoticeEl.textContent = 'Future sections will be discovered as you proceed.';
+      } else {
+        futureNoticeEl.style.display = 'none';
+      }
+    }
+
+    // Keep backwards-compatible chips if sectionsRow exists
+    if (sectionsRow) {
+      sectionsRow.innerHTML = '';
+      appPlan.sections.forEach(sec => {
+        const chip = document.createElement('span');
+        chip.style.cssText = `font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; ${
+          sec.status === 'DISCOVERED' ? 'background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;' : 'background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;'
+        }`;
+        chip.innerHTML = `${sec.status === 'DISCOVERED' ? '✓' : '•'} ${escapeHtml(sec.name)}`;
+        sectionsRow.appendChild(chip);
+      });
+    }
+  }
+
+  function renderAssistantUI(appPlan, scanData) {
+    const assistantBox = document.getElementById('assistant-box');
+    const assistantPrompt = document.getElementById('assistant-prompt');
+    const optionsContainer = document.getElementById('assistant-options-container');
+    if (!assistantBox || !assistantPrompt || !optionsContainer) return;
+
+    const assistant = getConversationalAssistant();
+    if (!assistant || !appPlan) {
+      assistantBox.style.display = 'none';
+      return;
+    }
+
+    assistant.setPlan(appPlan);
+    assistant.setProfile(currentInfoProfile);
+    const questions = assistant.getPendingQuestions();
+
+    if (!questions || questions.length === 0) {
+      assistantBox.style.display = 'none';
+      return;
+    }
+
+    const q = questions[0]; // Progressive questioning: 1 prompt at a time
+    assistantBox.style.display = 'block';
+    assistantPrompt.textContent = q.prompt;
+    optionsContainer.innerHTML = '';
+
+    const targetCid = q.canonicalId || q.fieldId;
+
+    function renderDecisionPrompt(message, value, canonicalId, isReplacement) {
+      assistantPrompt.textContent = message;
+      optionsContainer.innerHTML = '';
+
+      const decisionRow = document.createElement('div');
+      decisionRow.style.cssText = 'display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 4px;';
+
+      const btnGroup = document.createElement('div');
+      btnGroup.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap;';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.id = 'btn-assistant-save-profile';
+      saveBtn.className = 'btn btn-primary btn-sm';
+      saveBtn.textContent = isReplacement ? 'Replace in My Information' : 'Save to My Information';
+      saveBtn.style.cssText = 'padding: 6px 12px; background: #16a34a; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;';
+      saveBtn.addEventListener('click', async () => {
+        if (currentInfoProfile) {
+          currentInfoProfile.setField(canonicalId, value, 'USER_ENTERED', 'Conversational Assistant');
+          const pm = getProfileManager();
+          const sm = getStorageManager();
+          if (pm && pm.initialized) {
+            await pm.saveCurrentProfileData(currentInfoProfile.toJSON());
+          } else if (sm) {
+            await sm.saveInformationProfile(currentInfoProfile.toJSON());
+          }
+          populateInfoForm();
+        }
+        assistant.submitAnswer(q.fieldId, value, { persistToProfile: true, canonicalId, fieldDef: q });
+        renderScanResults(scanData);
+      });
+
+      const useOnceBtn = document.createElement('button');
+      useOnceBtn.type = 'button';
+      useOnceBtn.id = 'btn-assistant-use-once';
+      useOnceBtn.className = 'btn btn-secondary btn-sm';
+      useOnceBtn.textContent = 'Use for this application only';
+      useOnceBtn.style.cssText = 'padding: 6px 12px; background: white; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;';
+      useOnceBtn.addEventListener('click', () => {
+        // Do NOT modify currentInfoProfile
+        assistant.submitAnswer(q.fieldId, value, { persistToProfile: false, canonicalId, fieldDef: q });
+        renderScanResults(scanData);
+      });
+
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.textContent = 'Edit';
+      retryBtn.style.cssText = 'padding: 6px 10px; background: transparent; color: #6b7280; border: none; font-size: 11px; cursor: pointer; text-decoration: underline;';
+      retryBtn.addEventListener('click', () => {
+        renderAssistantUI(appPlan, scanData);
+      });
+
+      btnGroup.appendChild(saveBtn);
+      btnGroup.appendChild(useOnceBtn);
+      btnGroup.appendChild(retryBtn);
+      decisionRow.appendChild(btnGroup);
+      optionsContainer.appendChild(decisionRow);
+    }
+
+    function handleValidAnswer(normalizedValue) {
+      if (q.isMockSecurityChallenge) {
+        assistantPrompt.textContent = '✓ Answer confirmed';
+        optionsContainer.innerHTML = '';
+
+        // Fill DOM field via chrome.tabs message
+        const fillMsg = {
+          action: 'FILL_MOCK_CHALLENGE',
+          elementId: q.elementId || q.fieldId,
+          selector: q.selector,
+          value: normalizedValue
+        };
+
+        if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs && tabs[0] && tabs[0].id) {
+              chrome.tabs.sendMessage(tabs[0].id, fillMsg, () => {});
+            }
+          });
+        }
+
+        // Direct in-page fill fallback (for test harness or shared window)
+        try {
+          const doc = (window.parent && window.parent.document !== document) ? window.parent.document : document;
+          const targetEl = (q.elementId ? doc.getElementById(q.elementId) : null) || (q.selector ? doc.querySelector(q.selector) : null);
+          if (targetEl) {
+            try {
+              const proto = Object.getPrototypeOf(targetEl);
+              const desc = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+              if (desc && desc.set) {
+                desc.set.call(targetEl, normalizedValue);
+              } else {
+                targetEl.value = normalizedValue;
+              }
+            } catch (e) {
+              targetEl.value = normalizedValue;
+            }
+            targetEl.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+            targetEl.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+            try { targetEl.dispatchEvent(new Event('blur', { bubbles: true })); } catch (e) {}
+          }
+        } catch (e) {}
+
+        if (typeof window !== 'undefined' && window.__efill_fill_mock_challenge) {
+          window.__efill_fill_mock_challenge(q.elementId || q.fieldId, normalizedValue);
+        }
+
+        // Submit to assistant session (NEVER TO PROFILE)
+        assistant.submitAnswer(q.fieldId, normalizedValue, { persistToProfile: false, canonicalId: 'mock_security_challenge', fieldDef: q });
+
+        setTimeout(() => {
+          renderScanResults(scanData);
+        }, 1200);
+        return;
+      }
+
+      if (q.isApplicationSpecific) {
+        assistant.submitAnswer(q.fieldId, normalizedValue, { persistToProfile: false, canonicalId: targetCid, fieldDef: q });
+        renderScanResults(scanData);
+        return;
+      }
+
+      const existingVal = currentInfoProfile ? currentInfoProfile.getValue(targetCid) : null;
+      if (existingVal && existingVal.trim() !== '') {
+        if (existingVal.trim().toLowerCase() === normalizedValue.toLowerCase()) {
+          assistant.submitAnswer(q.fieldId, normalizedValue, { persistToProfile: false, canonicalId: targetCid, fieldDef: q });
+          renderScanResults(scanData);
+          return;
+        } else {
+          renderDecisionPrompt(
+            `${q.label || targetCid} received: "${normalizedValue}". Your profile already has "${existingVal}". Replace existing value in My Information?`,
+            normalizedValue,
+            targetCid,
+            true
+          );
+          return;
+        }
+      }
+
+      renderDecisionPrompt(
+        `${q.label || targetCid} received: "${normalizedValue}".\nWould you like to save this to My Information?`,
+        normalizedValue,
+        targetCid,
+        false
+      );
+    }
+
+    if (q.options && q.options.length > 0) {
+      q.options.slice(0, 8).forEach(opt => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-assistant-choice';
+        btn.style.cssText = 'padding: 6px 12px; background: white; border: 1px solid #86efac; border-radius: 16px; font-size: 12px; font-weight: 600; color: #15803d; cursor: pointer; transition: all 0.15s;';
+        btn.textContent = opt;
+        btn.addEventListener('click', () => {
+          const valRes = assistant.validateAnswer(q.fieldId, opt, q);
+          if (valRes.valid) {
+            handleValidAnswer(valRes.normalizedValue);
+          }
+        });
+        optionsContainer.appendChild(btn);
+      });
+    } else {
+      const formWrap = document.createElement('div');
+      formWrap.style.cssText = 'display: flex; flex-direction: column; width: 100%; gap: 6px;';
+
+      const inputRow = document.createElement('div');
+      inputRow.style.cssText = 'display: flex; gap: 8px; width: 100%;';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = 'assistant-input-answer';
+      input.placeholder = q.isMockSecurityChallenge ? 'Enter calculation result...' : `Enter ${q.label || 'value'}...`;
+      input.style.cssText = 'padding: 6px 10px; border: 1px solid #86efac; border-radius: 6px; font-size: 12px; flex: 1;';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.id = 'btn-assistant-save-choice';
+      saveBtn.style.cssText = 'padding: 6px 12px; background: #16a34a; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;';
+      saveBtn.textContent = 'Save Choice';
+
+      const errorMsg = document.createElement('div');
+      errorMsg.id = 'assistant-error-msg';
+      errorMsg.style.cssText = 'display: none; color: #dc2626; font-size: 12px; font-weight: 500; margin-top: 2px;';
+
+      const doSubmit = () => {
+        const raw = input.value.trim();
+        const valRes = assistant.validateAnswer(q.fieldId, raw, q);
+        if (!valRes.valid) {
+          errorMsg.textContent = valRes.error || 'Invalid value.';
+          errorMsg.style.display = 'block';
+          input.focus();
+          return;
+        }
+        errorMsg.style.display = 'none';
+        handleValidAnswer(valRes.normalizedValue);
+      };
+
+      saveBtn.addEventListener('click', doSubmit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          doSubmit();
+        }
+      });
+
+      inputRow.appendChild(input);
+      inputRow.appendChild(saveBtn);
+      formWrap.appendChild(inputRow);
+      formWrap.appendChild(errorMsg);
+      optionsContainer.appendChild(formWrap);
     }
   }
 
@@ -2542,7 +3223,68 @@
   function showIneligibleState(r) { showBlockedState(r); }
   function showEmptyScan()        { showNoFormState(null); }
 
-  // ── Proposal Card Builder ───────────────────────────────────────────────────
+  // ── Proposal Card Builder & Direct Approval Autofill ────────────────────────
+
+  async function autofillSingleProposal(proposal, card) {
+    if (!proposal || !currentActiveTabId || typeof chrome === 'undefined' || !chrome.tabs) return;
+
+    const badge = card?.querySelector('.status-badge');
+    if (badge) {
+      badge.textContent = 'Filling...';
+      badge.className = 'status-badge badge-review';
+    }
+
+    try {
+      await new Promise((resolve) => {
+        chrome.tabs.sendMessage(
+          currentActiveTabId,
+          { action: 'AUTOFILL_APPROVED', approvedProposals: [proposal] },
+          (res) => {
+            if (chrome.runtime.lastError || !res || !res.report) {
+              if (badge) {
+                badge.textContent = '⚠️ Fill Error';
+                badge.className = 'status-badge badge-conflict';
+                badge.title = chrome.runtime.lastError?.message || 'Could not communicate with tab';
+              }
+              proposal.filled = false;
+              resolve();
+              return;
+            }
+
+            const report = res.report;
+            const itemResult = report.results?.[0];
+            if (itemResult && itemResult.success && itemResult.verified) {
+              proposal.filled = true;
+              proposal.status = 'READY';
+              if (badge) {
+                badge.textContent = '✓ Filled';
+                badge.className = 'status-badge badge-ready';
+                badge.title = 'Value verified in webpage DOM';
+              }
+              if (card) {
+                card.className = 'proposal-card ready filled';
+              }
+            } else {
+              proposal.filled = false;
+              if (badge) {
+                badge.textContent = '⚠️ Fill Failed';
+                badge.className = 'status-badge badge-conflict';
+                badge.title = itemResult?.error || 'Verification failed: value not accepted by page';
+              }
+            }
+            resolve();
+          }
+        );
+      });
+    } catch (err) {
+      console.warn('[E-Fill] Autofill dispatch error:', err);
+      if (badge) {
+        badge.textContent = '⚠️ Fill Error';
+        badge.className = 'status-badge badge-conflict';
+      }
+    }
+    updateActionBar();
+  }
 
   function createProposalCard(proposal, index) {
     const card = document.createElement('div');
@@ -2550,10 +3292,11 @@
 
     // Card border class
     let cardClass = 'proposal-card';
-    if (st === 'READY')           cardClass += ' ready';
+    if (proposal.filled)                                   cardClass += ' ready filled';
+    else if (st === 'READY')                               cardClass += ' ready';
     else if (st === 'REVIEW_REQUIRED' || st === 'AMBIGUOUS') cardClass += ' review';
-    else if (st === 'CONFLICT')   cardClass += ' conflict';
-    else                          cardClass += ' unavailable';
+    else if (st === 'CONFLICT')                            cardClass += ' conflict';
+    else                                                   cardClass += ' unavailable';
 
     card.className = cardClass;
     card.setAttribute('data-card-field-id', proposal.fieldId || '');
@@ -2565,11 +3308,17 @@
       AMBIGUOUS:        ['AMBIGUOUS', 'badge-ambiguous'],
       CONFLICT:         ['CONFLICT', 'badge-conflict'],
       UNAVAILABLE:      ['MISSING', 'badge-unavailable'],
-      UNIDENTIFIED:     ['UNIDENTIFIED', 'badge-unavailable']
+      UNIDENTIFIED:     ['UNIDENTIFIED', 'badge-unavailable'],
+      UNKNOWN:          ['UNKNOWN', 'badge-unavailable']
     };
-    const [badgeText, badgeClass] = badges[st] || ['—', 'badge-unavailable'];
+    const [badgeText, badgeClass] = proposal.filled
+      ? ['✓ Filled', 'badge-ready']
+      : (badges[st] || ['—', 'badge-unavailable']);
 
-    const isDisabled = (st === 'UNAVAILABLE' || st === 'UNIDENTIFIED' || st === 'CONFLICT');
+    const isConflict = (st === 'CONFLICT');
+    const isMissing = (st === 'UNAVAILABLE' || st === 'UNIDENTIFIED' || st === 'UNKNOWN');
+    const hasValue = proposal.proposedValue !== undefined && proposal.proposedValue !== null && String(proposal.proposedValue).trim() !== '';
+    const isCheckboxDisabled = isConflict || (!hasValue && isMissing);
 
     // Provenance tag
     const provLabel = proposal.provenanceLabel
@@ -2579,37 +3328,34 @@
     // Source tag
     const sourceStr = proposal.source ? escapeHtml(proposal.source) : '—';
 
+    // Alternatives box if present
+    const altsHtml = (proposal.alternatives && proposal.alternatives.length > 0)
+      ? `<div class="alternatives-box" style="margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+          <span style="font-size: 11px; color: #64748b;">Options:</span>
+          ${proposal.alternatives.map(alt => `
+            <button type="button" class="btn-alt-choice" style="font-size: 11px; padding: 2px 8px; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 4px; cursor: pointer; color: #1e293b;" data-alt-val="${escapeHtml(alt.value)}">
+              ${escapeHtml(alt.label)}: "${escapeHtml(alt.value)}"
+            </button>
+          `).join('')}
+        </div>`
+      : '';
+
     card.innerHTML = `
       <div class="card-top">
         <label class="field-checkbox-label">
-          <input type="checkbox" class="prop-checkbox" ${proposal.approved ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
+          <input type="checkbox" class="prop-checkbox" ${proposal.approved ? 'checked' : ''} ${isCheckboxDisabled ? 'disabled' : ''}>
           <span>${escapeHtml(proposal.label || proposal.canonicalId || 'Field')}</span>
         </label>
         <span class="status-badge ${badgeClass}" id="badge-${index}">${badgeText}</span>
       </div>
-      ${st === 'CONFLICT' ? buildConflictOptions(proposal, index) : `
+      ${isConflict ? buildConflictOptions(proposal, index) : `
       <div class="field-value-box">
         <input type="text" class="value-input"
           value="${escapeHtml(proposal.proposedValue || '')}"
-          placeholder="${isDisabled ? 'Not available in profile' : 'Value'}"
-          ${isDisabled ? 'disabled' : ''}>
+          placeholder="${isMissing ? 'Not available in profile' : 'Value'}">
         ${provLabel}
+        ${altsHtml}
       </div>`}
-      ${isDisabled && (proposal.recommendedDoc || (proposal.allPossibleDocs && proposal.allPossibleDocs.length > 0)) ? `
-      <div class="missing-field-rec">
-        <div class="missing-rec-info">
-          <span class="rec-badge">RECOMMENDED</span>
-          <span class="rec-label">📄 ${escapeHtml(proposal.recommendedDoc ? proposal.recommendedDoc.documentName : proposal.allPossibleDocs[0].documentName)}</span>
-        </div>
-        <button type="button" class="btn btn-primary btn-sm btn-rec-doc" data-doc-type="${escapeHtml(proposal.recommendedDoc ? proposal.recommendedDoc.docType : proposal.allPossibleDocs[0].docType)}">${getAddDocButtonLabel(proposal.recommendedDoc ? proposal.recommendedDoc.docType : proposal.allPossibleDocs[0].docType)}</button>
-        ${(proposal.allPossibleDocs && proposal.allPossibleDocs.length > 1) ? `
-        <div class="alt-sources-row" style="margin-top: 6px; font-size: 11px; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
-          <span>Or provide:</span>
-          ${proposal.allPossibleDocs
-            .filter(d => !proposal.recommendedDoc || d.docType !== proposal.recommendedDoc.docType)
-            .map(d => `<button type="button" class="btn-alt-doc" data-doc-type="${escapeHtml(d.docType)}" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; color: var(--text-color);">${escapeHtml(d.documentName || d.label)}</button>`).join('')}
-        </div>` : ''}
-      </div>` : ''}
       <div class="card-bottom">
         <span class="source-tag">📂 ${sourceStr}</span>
         <span class="reason-tooltip" title="${escapeHtml(proposal.reason)}">${escapeHtml(
@@ -2620,28 +3366,26 @@
       </div>
     `;
 
-    const recDocBtn = card.querySelector('.btn-rec-doc');
-    if (recDocBtn) {
-      recDocBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const targetDocType = recDocBtn.getAttribute('data-doc-type');
-        triggerDocumentUploadForField(targetDocType, proposal.fieldId, proposal.canonicalId);
-      });
-    }
-
-    card.querySelectorAll('.btn-alt-doc').forEach(altBtn => {
-      altBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const targetDocType = altBtn.getAttribute('data-doc-type');
-        triggerDocumentUploadForField(targetDocType, proposal.fieldId, proposal.canonicalId);
-      });
-    });
-
     const checkbox = card.querySelector('.prop-checkbox');
     if (checkbox) {
-      checkbox.addEventListener('change', (e) => {
+      checkbox.addEventListener('change', async (e) => {
         proposal.approved = e.target.checked;
         updateActionBar();
+
+        if (proposal.approved) {
+          const valStr = proposal.proposedValue !== undefined && proposal.proposedValue !== null ? String(proposal.proposedValue).trim() : '';
+          if (valStr !== '') {
+            await autofillSingleProposal(proposal, card);
+          }
+        } else {
+          proposal.filled = false;
+          const badge = card.querySelector('.status-badge');
+          if (badge) {
+            badge.textContent = badgeText;
+            badge.className = `status-badge ${badgeClass}`;
+          }
+          card.classList.remove('filled');
+        }
       });
     }
 
@@ -2650,13 +3394,45 @@
       input.addEventListener('input', (e) => {
         proposal.proposedValue = e.target.value;
         proposal.userEdited = true;
-        if (!proposal.approved && !isDisabled) {
-          proposal.approved = true;
-          if (checkbox) checkbox.checked = true;
-          updateActionBar();
+        const valTrimmed = String(e.target.value).trim();
+        if (checkbox) {
+          if (valTrimmed) {
+            checkbox.disabled = false;
+          } else {
+            checkbox.checked = false;
+            proposal.approved = false;
+            if (isMissing) checkbox.disabled = true;
+          }
+        }
+        updateActionBar();
+      });
+
+      input.addEventListener('change', async (e) => {
+        proposal.proposedValue = e.target.value;
+        proposal.userEdited = true;
+        if (proposal.approved && String(proposal.proposedValue).trim()) {
+          await autofillSingleProposal(proposal, card);
         }
       });
     }
+
+    // Alternative choices buttons
+    card.querySelectorAll('.btn-alt-choice').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const altVal = btn.getAttribute('data-alt-val');
+        if (altVal && input) {
+          input.value = altVal;
+          proposal.proposedValue = altVal;
+          proposal.userEdited = true;
+          if (checkbox) checkbox.disabled = false;
+          updateActionBar();
+          if (proposal.approved) {
+            await autofillSingleProposal(proposal, card);
+          }
+        }
+      });
+    });
 
     card.addEventListener('mouseenter', () => {
       if (currentActiveTabId && typeof chrome !== 'undefined' && chrome.tabs) {
@@ -2839,6 +3615,28 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  // Expose controller methods for verification and customer QA
+  if (typeof window !== 'undefined') {
+    window.__efill_sidepanel = {
+      getInfoProfile: () => currentInfoProfile,
+      setInfoProfile: (p) => { currentInfoProfile = p; },
+      populateInfoForm,
+      handleProfileDocumentSelected,
+      showDocumentProcessedModal,
+      saveApprovedDocumentData,
+      renderScanResults,
+      renderAssistantUI: () => {
+        const ap = getApplicationPlan();
+        if (ap && lastScanData) {
+          renderAssistantUI(ap, lastScanData);
+        }
+      },
+      getCurrentProposals: () => currentProposals,
+      getConversationalAssistant,
+      getApplicationPlan
+    };
   }
 
 })();
