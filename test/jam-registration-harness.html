@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JOAPS 2027 — Register</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      padding: 24px;
+    }
+    .container {
+      max-width: 750px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 20px;
+      color: #1e3a8a;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #3b82f6;
+      padding-bottom: 8px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .required { color: #dc2626; }
+    input[type="text"], input[type="email"], input[type="tel"], input[type="password"], select {
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .input-group {
+      display: flex;
+      align-items: stretch;
+      width: 100%;
+    }
+    .input-group-prepend {
+      display: flex;
+    }
+    .input-group-text {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #475569;
+      background-color: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-right: none;
+      border-top-left-radius: 6px;
+      border-bottom-left-radius: 6px;
+    }
+    .input-group input {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
+    .iti__country-select {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-right: none;
+      padding: 8px 10px;
+      border-top-left-radius: 6px;
+      border-bottom-left-radius: 6px;
+      font-size: 13px;
+      color: #334155;
+    }
+    .custom-select-wrapper {
+      position: relative;
+    }
+    .dropdown-search {
+      margin-top: 4px;
+      padding: 6px 10px;
+      font-size: 13px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      background: #fdfdfd;
+    }
+    .btn {
+      padding: 10px 20px;
+      background: #1e3a8a;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>JAM 2027 Registration Portal (JOAPS)</h1>
+
+    <form id="register-form" onsubmit="return false;">
+      <div class="form-group">
+        <label for="first_name">First Name <span class="required">*</span></label>
+        <input type="text" id="first_name" name="first_name" placeholder="First Name">
+      </div>
+
+      <div class="form-group">
+        <label for="middle_name">Middle Name</label>
+        <input type="text" id="middle_name" name="middle_name" placeholder="Middle Name">
+      </div>
+
+      <div class="form-group">
+        <label for="surname">Surname <span class="required">*</span></label>
+        <input type="text" id="surname" name="surname" placeholder="Surname">
+      </div>
+
+      <div class="form-group">
+        <label for="candidate_name">Name of the Candidate <span class="required">*</span></label>
+        <input type="text" id="candidate_name" name="candidate_name" placeholder="Full name as per 10th certificate">
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email Address <span class="required">*</span></label>
+        <input type="email" id="email" name="email" placeholder="example@domain.com">
+      </div>
+
+      <div class="form-group">
+        <label for="confirm_email">Confirm Email Address <span class="required">*</span></label>
+        <input type="email" id="confirm_email" name="confirm_email" placeholder="Confirm example@domain.com">
+      </div>
+
+      <!-- Country of Residence: Real JAM uses Radio Buttons (India / Other) -->
+      <div class="form-group">
+        <label>Country of Residence <span class="required">*</span></label>
+        <div class="radio-options-group" style="display: flex; gap: 16px; margin-top: 6px;">
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer;">
+            <input type="radio" name="country" id="country_india" value="India"> India
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer;">
+            <input type="radio" name="country" id="country_other" value="Other"> Other
+          </label>
+        </div>
+      </div>
+
+      <!-- Compound Phone 1: Mobile Number with +91(IN) prefix addon & country calling code selector -->
+      <div class="form-group">
+        <label for="mobile">Mobile Number <span class="required">*</span></label>
+        <div class="input-group">
+          <select class="iti__country-select country-code" name="mobile_country_code">
+            <option value="+91">+91(IN)</option>
+            <option value="+1">+1(US)</option>
+            <option value="+44">+44(UK)</option>
+          </select>
+          <input type="tel" id="mobile" name="mobile" placeholder="10-digit Mobile Number">
+        </div>
+      </div>
+
+      <!-- Compound Phone 2: Confirm Mobile Number with +91(IN) prepend badge -->
+      <div class="form-group">
+        <label for="confirm_mobile">Confirm Mobile Number <span class="required">*</span></label>
+        <div class="input-group">
+          <div class="input-group-prepend">
+            <span class="input-group-text">+91(IN)</span>
+          </div>
+          <input type="tel" id="confirm_mobile" name="confirm_mobile" placeholder="Confirm 10-digit Mobile Number">
+        </div>
+      </div>
+
+      <!-- Passwords (treated as SECURITY_CREDENTIAL) -->
+      <div class="form-group">
+        <label for="password">Choose Password <span class="required">*</span></label>
+        <input type="password" id="password" name="password">
+      </div>
+
+      <div class="form-group">
+        <label for="confirm_password">Confirm Password <span class="required">*</span></label>
+        <input type="password" id="confirm_password" name="confirm_password">
+      </div>
+
+      <!-- Real Security Challenge (Real Arithmetic CAPTCHA: 9 - 9 =) -->
+      <div class="form-group">
+        <label for="captcha">9 - 9 = <span class="required">*</span></label>
+        <input type="text" id="captcha" name="captcha" placeholder="Evaluate the expression">
+      </div>
+
+      <button type="submit" class="btn" id="btn-submit">Submit Registration</button>
+    </form>
+  </div>
+
+  <script>
+    window.__efill_submit_count = 0;
+    document.getElementById('register-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      window.__efill_submit_count++;
+    });
+  </script>
+
+  <script src="../core/canonical-schema.js"></script>
+  <script src="../core/normalizer.js"></script>
+  <script src="../core/app-profiles.js"></script>
+  <script src="../core/page-classifier.js"></script>
+  <script src="../core/information-profile.js"></script>
+  <script src="../core/profile-manager.js"></script>
+  <script src="../core/conflict-engine.js"></script>
+  <script src="../core/file-validator.js"></script>
+  <script src="../core/document-field-map.js"></script>
+  <script src="../core/document-classifier.js"></script>
+  <script src="../core/ocr-engine.js"></script>
+  <script src="../core/document-extractor.js"></script>
+  <script src="../core/document-source-manager.js"></script>
+  <script src="../core/application-mapping-engine.js"></script>
+  <script src="../core/availability-engine.js"></script>
+  <script src="../core/source-selector.js"></script>
+  <script src="../core/application-plan.js"></script>
+  <script src="../core/conversational-assistant.js"></script>
+  <script src="../content/field-reader.js"></script>
+  <script src="../content/form-detector.js"></script>
+  <script src="../content/indicator.js"></script>
+  <script src="../content/autofill.js"></script>
+  <script src="../content/content.js"></script>
+</body>
+</html>

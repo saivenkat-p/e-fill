@@ -100,29 +100,54 @@
         };
       }
 
-      // ── REAL SECURITY CHALLENGE ───────────────────────────────────────────
-      if (field.isRealSecurityChallenge || field.securityChallengeType === 'REAL_SECURITY_CHALLENGE' || (name && /captcha|recaptcha/i.test(name))) {
+      // ── SECURITY CREDENTIAL (PASSWORDS) ───────────────────────────────────
+      if (field.isSecurityCredential || field.type === 'SECURITY_CREDENTIAL' || field.securityType === 'SECURITY_CREDENTIAL' || (type === 'password')) {
         return {
           fieldId:         elementId,
           selector:        selector || '',
           name:            name || '',
-          tagName:         tagName || '',
-          label:           label || 'Security Challenge',
-          type:            type || 'text',
+          tagName:         tagName || 'input',
+          label:           label || 'Password',
+          type:            'SECURITY_CREDENTIAL',
+          canonicalId:     null,
+          proposedValue:   '',
+          source:          'Security Credential',
+          provenance:      null,
+          provenanceLabel: '🔐 User Action',
+          status:          'USER_ACTION_REQUIRED',
+          confidence:      1.0,
+          reason:          'Enter directly on the application',
+          approved:        false,
+          userEdited:      false,
+          conflicts:       [],
+          isSecurityCredential: true,
+          securityType:    'SECURITY_CREDENTIAL'
+        };
+      }
+
+      // ── REAL SECURITY CHALLENGE ───────────────────────────────────────────
+      if (field.isRealSecurityChallenge || field.type === 'SECURITY_CHALLENGE' || field.securityChallengeType === 'SECURITY_CHALLENGE' || field.securityChallengeType === 'REAL_SECURITY_CHALLENGE' || (!field.isMockSecurityChallenge && name && /captcha|recaptcha/i.test(name))) {
+        return {
+          fieldId:         elementId,
+          selector:        selector || '',
+          name:            name || '',
+          tagName:         tagName || 'input',
+          label:           'Website Security',
+          type:            'SECURITY_CHALLENGE',
           canonicalId:     null,
           proposedValue:   '',
           source:          'Website Security',
           provenance:      null,
-          provenanceLabel: null,
+          provenanceLabel: '🔐 Website Security',
           status:          'USER_ACTION_REQUIRED',
           confidence:      1.0,
-          reason:          'Complete directly on website (Real CAPTCHA)',
+          reason:          'Complete the CAPTCHA directly on the application page.',
           approved:        false,
           userEdited:      false,
           conflicts:       [],
           isSecurityChallenge: true,
           isRealSecurityChallenge: true,
-          securityChallengeType: 'REAL_SECURITY_CHALLENGE'
+          securityChallengeType: 'SECURITY_CHALLENGE'
         };
       }
 
@@ -130,7 +155,7 @@
       if (!canonicalId) {
         if (mappingEngine) {
           const mapped = mappingEngine.mapField(field, profile, extraSources);
-          if (mapped && mapped.proposedValue) {
+          if (mapped && (mapped.proposedValue || mapped.status === 'USER_ACTION_REQUIRED' || mapped.status === 'APPLICATION_CHOICE' || mapped.isApplicationChoice)) {
             return mapped;
           }
         }

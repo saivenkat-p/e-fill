@@ -1102,6 +1102,72 @@
       const req = FieldSemanticUnderstanding.analyzeRequirement(field);
       if (!req) return null;
 
+      // Security credential: Passwords and credentials must NEVER be treated as missing or autofilled
+      if (field.isSecurityCredential || field.type === 'SECURITY_CREDENTIAL' || field.securityType === 'SECURITY_CREDENTIAL') {
+        req.mappingStatus = 'SECURITY_CREDENTIAL';
+        return {
+          fieldId:              field.elementId || '',
+          selector:             field.selector || '',
+          name:                 field.name || '',
+          tagName:              field.tagName || 'input',
+          label:                field.label || 'Password',
+          type:                 'SECURITY_CREDENTIAL',
+          canonicalId:          null,
+          proposedValue:        '',
+          originalProfileValue: null,
+          source:               'Security Credential',
+          provenance:           null,
+          provenanceLabel:      '🔐 User Action',
+          provenanceDetail:     null,
+          status:               'USER_ACTION_REQUIRED',
+          mappingStatus:        'SECURITY_CREDENTIAL',
+          confidence:           1.0,
+          transformation:       'NONE',
+          transformationNote:   'Enter directly on the application',
+          alternatives:         [],
+          semanticRequirement:  req,
+          reason:               'Enter directly on the application',
+          isSecurityCredential: true,
+          securityType:         'SECURITY_CREDENTIAL',
+          approved:             false,
+          userEdited:           false,
+          conflicts:            []
+        };
+      }
+
+      // Real security challenge: CAPTCHA / human verification must NEVER be treated as missing or autofilled
+      if (field.isRealSecurityChallenge || field.type === 'SECURITY_CHALLENGE' || field.securityChallengeType === 'SECURITY_CHALLENGE' || field.securityChallengeType === 'REAL_SECURITY_CHALLENGE') {
+        req.mappingStatus = 'SECURITY_CHALLENGE';
+        return {
+          fieldId:              field.elementId || '',
+          selector:             field.selector || '',
+          name:                 field.name || '',
+          tagName:              field.tagName || 'input',
+          label:                'Website Security',
+          type:                 'SECURITY_CHALLENGE',
+          canonicalId:          null,
+          proposedValue:        '',
+          originalProfileValue: null,
+          source:               'Website Security Challenge',
+          provenance:           null,
+          provenanceLabel:      '🔐 Website Security',
+          provenanceDetail:     null,
+          status:               'USER_ACTION_REQUIRED',
+          mappingStatus:        'SECURITY_CHALLENGE',
+          confidence:           1.0,
+          transformation:       'NONE',
+          transformationNote:   'Complete the CAPTCHA directly on the application page.',
+          alternatives:         [],
+          semanticRequirement:  req,
+          reason:               'Complete the CAPTCHA directly on the application page.',
+          isRealSecurityChallenge: true,
+          securityChallengeType: 'SECURITY_CHALLENGE',
+          approved:             false,
+          userEdited:           false,
+          conflicts:            []
+        };
+      }
+
       // 2. If the field is completely UNKNOWN and cannot be understood
       if (req.intent === 'UNKNOWN' && !req.canonicalId) {
         req.mappingStatus = MAPPING_STATUS.UNKNOWN;
@@ -1124,8 +1190,39 @@
         if (result) break;
       }
 
-      // 4. Missing Information Detection
+      // 4. Missing Information Detection & Application Choices
       if (!result || !result.proposedValue) {
+        if (field.isRadioGroup || (field.options && field.options.length > 0 && field.type === 'radio')) {
+          req.mappingStatus = 'APPLICATION_CHOICE';
+          return {
+            fieldId:              field.elementId || '',
+            selector:             field.selector || '',
+            name:                 field.name || '',
+            tagName:              field.tagName || '',
+            label:                req.label || field.elementId || 'Application Choice',
+            type:                 'radio',
+            canonicalId:          req.canonicalId,
+            proposedValue:        '',
+            originalProfileValue: null,
+            options:              field.options || [],
+            source:               'Application Choices',
+            provenance:           null,
+            provenanceLabel:      '🔘 Choice Required',
+            status:               'APPLICATION_CHOICE',
+            mappingStatus:        'APPLICATION_CHOICE',
+            confidence:           0.8,
+            transformation:       'NONE',
+            transformationNote:   'Please select an option for this application',
+            alternatives:         field.options || [],
+            semanticRequirement:  req,
+            reason:               'Please select an option for this application',
+            isApplicationChoice:  true,
+            approved:             false,
+            userEdited:           false,
+            conflicts:            []
+          };
+        }
+
         req.mappingStatus = MAPPING_STATUS.MISSING;
         return this._buildProposal(req, {
           status: MAPPING_STATUS.MISSING,
@@ -1140,7 +1237,11 @@
       }
 
       req.mappingStatus = result.status;
-      return this._buildProposal(req, result);
+      const prop = this._buildProposal(req, result);
+      if (field.options && field.options.length > 0) {
+        prop.options = field.options;
+      }
+      return prop;
     }
 
     _buildProposal(req, result) {

@@ -28,6 +28,7 @@
        TAB 1: Review & Fill
   ═══════════════════════════════════════════════════════════════ -->
   <main class="tab-view active" id="view-review">
+    <div class="review-scrollable-content" id="review-scrollable-content">
 
     <!-- Page Context Card -->
     <section class="page-context-card">
@@ -162,6 +163,16 @@
           <div class="proposals-stack" id="stack-conflict"></div>
         </div>
 
+        <!-- Group: Application Choices -->
+        <div class="proposal-group" id="group-choices" style="display: none;">
+          <div class="group-header group-header-choice">
+            <span class="group-header-icon">🔘</span>
+            <span class="group-header-label">Application Choices</span>
+            <span class="group-header-count" id="group-count-choices">0</span>
+          </div>
+          <div class="proposals-stack" id="stack-choices"></div>
+        </div>
+
         <!-- Group: Missing Information -->
         <div class="proposal-group" id="group-missing" style="display: none;">
           <div class="group-header group-header-missing">
@@ -191,14 +202,25 @@
           </div>
           <div class="proposals-stack" id="stack-uploads"></div>
         </div>
+
+        <!-- Group: Security / User Action -->
+        <div class="proposal-group" id="group-security" style="display: none;">
+          <div class="group-header group-header-security">
+            <span class="group-header-icon">🔐</span>
+            <span class="group-header-label">Security / User Action</span>
+            <span class="group-header-count" id="group-count-security">0</span>
+          </div>
+          <div class="proposals-stack" id="stack-security"></div>
+        </div>
       </div>
     </div>
 
     <!-- Result Alert -->
     <div class="result-alert" id="result-alert" style="display: none;"></div>
+    </div><!-- End of review-scrollable-content -->
 
-    <!-- Footer Action Bar -->
-    <footer class="action-bar">
+    <!-- Footer Action Bar (Fixed at absolute bottom of Review & Fill) -->
+    <footer class="action-bar" id="review-action-footer">
       <div class="action-info">
         <span id="approved-count-text">0 fields selected</span>
       </div>
@@ -899,13 +921,17 @@
             </div>
           </div>
         </div>
-        <div class="preview-image-container" id="preview-image-container" style="display: none;">
-          <img id="preview-img-element" alt="Prepared file preview" class="prepared-preview-img">
+        <div class="preview-checks-box" id="preview-checks-box" style="margin-top: 10px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+          <h4 style="margin: 0 0 6px 0; font-size: 12px; font-weight: 600; color: #475569;">Application Requirement Validation</h4>
+          <ul id="preview-checks-list" style="list-style: none; padding: 0; margin: 0; font-size: 12px; display: flex; flex-direction: column; gap: 4px;"></ul>
+        </div>
+        <div class="preview-image-container" id="preview-image-container" style="display: none; margin-top: 12px; text-align: center;">
+          <img id="preview-img-element" alt="Prepared file preview" class="prepared-preview-img" style="max-height: 220px; max-width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" id="btn-use-original-file">Use Original</button>
-        <button type="button" class="btn btn-primary" id="btn-confirm-use-prepared">Use Prepared File</button>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" class="btn btn-secondary" id="btn-replace-source-file">Replace</button>
+        <button type="button" class="btn btn-primary" id="btn-confirm-use-prepared">Use This Photo</button>
       </div>
     </div>
   </div>
@@ -1001,6 +1027,7 @@
   <script src="../core/document-source-manager.js"></script>
   <script src="../core/image-preparation-engine.js"></script>
   <script src="../core/upload-preparation-engine.js"></script>
+  <script src="../core/upload-requirement-engine.js"></script>
   <script src="../core/document-requirement-engine.js"></script>
   <script src="../core/application-mapping-engine.js"></script>
   <script src="../core/availability-engine.js"></script>

@@ -261,6 +261,7 @@
 
     /**
      * Browser Canvas Preparation with iterative quality compression stepping.
+     * Uses browser canvas high-quality image smoothing.
      */
     async _executeCanvasPreparation(sourceEl, crop, targetDims, targetFormat, constraints, originalSize) {
       const canvas = document.createElement('canvas');
@@ -268,7 +269,11 @@
       canvas.height = targetDims.height;
       const ctx = canvas.getContext('2d');
 
-      // Fill white background for JPEG
+      // Enable high-quality image smoothing on canvas
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // Fill white background for JPEG to prevent transparent PNG dark artifacts
       if (targetFormat === 'image/jpeg') {
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, targetDims.width, targetDims.height);
@@ -277,8 +282,8 @@
       ctx.drawImage(sourceEl, crop.sx, crop.sy, crop.sWidth, crop.sHeight, 0, 0, targetDims.width, targetDims.height);
 
       // Iterative compression stepping to satisfy min/max size
-      const maxBytes = constraints.maxSizeBytes || 100 * 1024;
-      const minBytes = constraints.minSizeBytes || 20 * 1024;
+      const maxBytes = constraints.maxSizeBytes || null;
+      const minBytes = constraints.minSizeBytes || null;
 
       let quality = 0.92;
       let blob = await new Promise(res => canvas.toBlob(res, targetFormat, quality));
@@ -286,33 +291,49 @@
       const qualities = [0.85, 0.75, 0.65, 0.50, 0.40, 0.30];
       let stepIndex = 0;
 
-      while (blob && blob.size > maxBytes && stepIndex < qualities.length) {
-        quality = qualities[stepIndex++];
-        blob = await new Promise(res => canvas.toBlob(res, targetFormat, quality));
+      // Step quality down if above max
+      if (maxBytes) {
+        while (blob && blob.size > maxBytes && stepIndex < qualities.length) {
+          quality = qualities[stepIndex++];
+          blob = await new Promise(res => canvas.toBlob(res, targetFormat, quality));
+        }
       }
 
       const resultBytes = blob ? blob.size : Math.round(originalSize * 0.3);
 
+      const preparedData = {
+        width: targetDims.width,
+        height: targetDims.height,
+        sizeBytes: resultBytes,
+        format: targetFormat === 'image/jpeg' ? 'JPG' : (targetFormat === 'image/png' ? 'PNG' : 'Standard'),
+        mimeType: targetFormat,
+        aspectRatio: Number((targetDims.width / targetDims.height).toFixed(2)),
+        quality,
+        blob,
+        dataUrl: canvas.toDataURL(targetFormat, quality)
+      };
+
+      // Run structured validation if validator available
+      let validationReport = null;
+      let status = 'READY';
+      if (this.validator && typeof this.validator.validatePreparedFile === 'function') {
+        validationReport = this.validator.validatePreparedFile(preparedData, constraints.requirement || constraints);
+        if (!validationReport.valid) {
+          status = 'INVALID';
+        }
+      }
+
       return {
-        success: true,
-        status: 'READY',
+        success: status === 'READY',
+        status,
         original: {
           width: sourceEl.naturalWidth || sourceEl.width,
           height: sourceEl.naturalHeight || sourceEl.height,
           sizeBytes: originalSize,
           format: targetFormat
         },
-        prepared: {
-          width: targetDims.width,
-          height: targetDims.height,
-          sizeBytes: resultBytes,
-          format: targetFormat === 'image/jpeg' ? 'JPG' : 'PNG',
-          mimeType: targetFormat,
-          aspectRatio: Number((targetDims.width / targetDims.height).toFixed(2)),
-          quality,
-          blob,
-          dataUrl: canvas.toDataURL(targetFormat, quality)
-        },
+        prepared: preparedData,
+        validationReport,
         constraints: {
           targetWidth: targetDims.width,
           targetHeight: targetDims.height,
@@ -327,38 +348,52 @@
      */
     _simulatePreparation(input, crop, targetDims, targetFormat, constraints) {
       const originalSize = input.sizeBytes || 800000;
-      const maxBytes = constraints.maxSizeBytes || 100 * 1024;
-      const minBytes = constraints.minSizeBytes || 20 * 1024;
+      const maxBytes = constraints.maxSizeBytes || null;
+      const minBytes = constraints.minSizeBytes || null;
 
       // Simulate compressed size: scales with pixel ratio & quality stepping
-      const pixelRatio = (targetDims.width * targetDims.height) / (input.width * input.height);
+      const srcW = input.width || crop.sWidth || 1000;
+      const srcH = input.height || crop.sHeight || 1000;
+      const pixelRatio = (targetDims.width * targetDims.height) / (srcW * srcH);
       let simulatedBytes = Math.round(originalSize * pixelRatio * 0.45);
 
-      if (simulatedBytes > maxBytes) {
+      if (maxBytes && simulatedBytes > maxBytes) {
         simulatedBytes = Math.round(maxBytes * 0.82); // Stepped down into range
       }
-      if (simulatedBytes < minBytes) {
-        simulatedBytes = Math.min(maxBytes, Math.round(minBytes * 1.25));
+      if (minBytes && simulatedBytes < minBytes) {
+        simulatedBytes = maxBytes ? Math.min(maxBytes, Math.round(minBytes * 1.15)) : Math.round(minBytes * 1.15);
+      }
+
+      const preparedData = {
+        width: targetDims.width,
+        height: targetDims.height,
+        sizeBytes: simulatedBytes,
+        format: targetFormat === 'image/jpeg' ? 'JPG' : (targetFormat === 'image/png' ? 'PNG' : 'Standard'),
+        mimeType: targetFormat,
+        aspectRatio: Number((targetDims.width / targetDims.height).toFixed(2)),
+        quality: 0.85
+      };
+
+      let validationReport = null;
+      let status = 'READY';
+      if (this.validator && typeof this.validator.validatePreparedFile === 'function') {
+        validationReport = this.validator.validatePreparedFile(preparedData, constraints.requirement || constraints);
+        if (!validationReport.valid) {
+          status = 'INVALID';
+        }
       }
 
       return {
-        success: true,
-        status: 'READY',
+        success: status === 'READY',
+        status,
         original: {
           width: input.width,
           height: input.height,
           sizeBytes: originalSize,
           format: input.mimeType || 'image/jpeg'
         },
-        prepared: {
-          width: targetDims.width,
-          height: targetDims.height,
-          sizeBytes: simulatedBytes,
-          format: targetFormat,
-          mimeType: targetFormat,
-          aspectRatio: Number((targetDims.width / targetDims.height).toFixed(2)),
-          quality: 0.85
-        },
+        prepared: preparedData,
+        validationReport,
         constraints: {
           targetWidth: targetDims.width,
           targetHeight: targetDims.height,
@@ -369,20 +404,45 @@
     }
 
     /**
+     * Normalizes input requirement object into preparation constraints.
+     * Respects exact application specifications without guessing default numbers.
+     */
+    _normalizeConstraints(reqOrConstraints = {}, category = 'photo') {
+      const isReqObj = reqOrConstraints && (reqOrConstraints.dimensions || reqOrConstraints.fileSize || reqOrConstraints.format);
+      const dims = isReqObj ? (reqOrConstraints.dimensions || {}) : reqOrConstraints;
+      const fs = isReqObj ? (reqOrConstraints.fileSize || {}) : reqOrConstraints;
+      const fmt = isReqObj ? (reqOrConstraints.format || {}) : reqOrConstraints;
+
+      const exactWidth = dims.width || dims.exactWidth || null;
+      const exactHeight = dims.height || dims.exactHeight || null;
+      const aspectRatio = dims.aspectRatio || (exactWidth && exactHeight ? exactWidth / exactHeight : null);
+
+      const minSizeBytes = fs.minBytes ?? fs.minSizeBytes ?? null;
+      const maxSizeBytes = fs.maxBytes ?? fs.maxSizeBytes ?? null;
+
+      const allowedFormats = fmt.allowedFormats || (fmt.format ? [fmt.format] : ['image/jpeg']);
+
+      return {
+        category,
+        exactWidth,
+        exactHeight,
+        aspectRatio,
+        minSizeBytes,
+        maxSizeBytes,
+        allowedFormats,
+        requirement: reqOrConstraints
+      };
+    }
+
+    /**
      * Specialized Photo Preparation.
-     * Uses portal requirements or default portrait constraints (300x400 / 200x230, 20KB-100KB, JPG).
+     * Uses application requirements, top-focused crop, and iterative compression.
      */
     async preparePhoto(input, portalConstraints = {}) {
+      const norm = this._normalizeConstraints(portalConstraints, 'photo');
       const mergedConstraints = {
-        aspectRatio: portalConstraints.aspectRatio || (portalConstraints.exactWidth && portalConstraints.exactHeight
-          ? portalConstraints.exactWidth / portalConstraints.exactHeight
-          : 300 / 400),
-        exactWidth: portalConstraints.exactWidth || (portalConstraints.width || 300),
-        exactHeight: portalConstraints.exactHeight || (portalConstraints.height || 400),
-        minSizeBytes: portalConstraints.minSizeBytes || 20 * 1024,
-        maxSizeBytes: portalConstraints.maxSizeBytes || 100 * 1024,
-        allowedFormats: ['image/jpeg'],
-        focus: 'top', // Preserve head/facial headroom
+        ...norm,
+        focus: 'top', // Preserve candidate facial headroom
         ...portalConstraints
       };
 
@@ -391,20 +451,29 @@
 
     /**
      * Specialized Signature Preparation.
-     * Whitespace-trimmed bounding box, aspect-ratio correction, file size validation.
+     * Whitespace-trimmed bounding box, ink stroke preservation, and iterative compression.
      */
     async prepareSignature(input, portalConstraints = {}) {
+      const norm = this._normalizeConstraints(portalConstraints, 'signature');
+
+      let contentBounds = portalConstraints.contentBounds || null;
+      // If canvas/imageData source available and contentBounds not provided, detect bounds
+      if (!contentBounds && input.sourceElement && typeof document !== 'undefined') {
+        try {
+          const testCanvas = document.createElement('canvas');
+          testCanvas.width = input.width || input.sourceElement.naturalWidth || input.sourceElement.width;
+          testCanvas.height = input.height || input.sourceElement.naturalHeight || input.sourceElement.height;
+          const tctx = testCanvas.getContext('2d');
+          tctx.drawImage(input.sourceElement, 0, 0);
+          const imgData = tctx.getImageData(0, 0, testCanvas.width, testCanvas.height);
+          contentBounds = this.detectSignatureBounds(imgData);
+        } catch (e) {}
+      }
+
       const mergedConstraints = {
-        aspectRatio: portalConstraints.aspectRatio || (portalConstraints.exactWidth && portalConstraints.exactHeight
-          ? portalConstraints.exactWidth / portalConstraints.exactHeight
-          : 140 / 60),
-        exactWidth: portalConstraints.exactWidth || (portalConstraints.width || 280),
-        exactHeight: portalConstraints.exactHeight || (portalConstraints.height || 120),
-        minSizeBytes: portalConstraints.minSizeBytes || 10 * 1024,
-        maxSizeBytes: portalConstraints.maxSizeBytes || 50 * 1024,
-        allowedFormats: ['image/jpeg'],
+        ...norm,
         focus: 'bounds',
-        contentBounds: portalConstraints.contentBounds || null,
+        contentBounds,
         ...portalConstraints
       };
 

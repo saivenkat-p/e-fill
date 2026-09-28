@@ -509,7 +509,7 @@ async function run() {
 
     step('1. E-Fill detects mock challenge (type: MOCK_SECURITY_CHALLENGE)', testHScan.mockDetected && (testHScan.mockType === 'MOCK_SECURITY_CHALLENGE' || testHScan.mockSecurityType === 'MOCK_SECURITY_CHALLENGE'));
     step('2. Assistant asks: "What is the answer to 8 - 4?"', testHScan.mockQPrompt === 'What is the answer to 8 - 4?');
-    step('12. Verify real CAPTCHA fields remain protected (never asked by Assistant)', !testHScan.hasRealCaptchaQ && testHScan.realCaptchaSecurityType === 'REAL_SECURITY_CHALLENGE');
+    step('12. Verify real CAPTCHA fields remain protected (never asked by Assistant)', !testHScan.hasRealCaptchaQ && (testHScan.realCaptchaSecurityType === 'SECURITY_CHALLENGE' || testHScan.realCaptchaSecurityType === 'REAL_SECURITY_CHALLENGE'));
 
     await sidepanelCdp.eval(`
       (() => {

@@ -305,14 +305,46 @@
      * Fills radio button inputs.
      */
     fillRadio(el, targetValue) {
-      const proto = typeof HTMLInputElement !== 'undefined' ? HTMLInputElement.prototype : Object.getPrototypeOf(el);
+      let targetEl = el;
+      if (el.name && targetValue) {
+        const doc = el.ownerDocument || (typeof document !== 'undefined' ? document : null);
+        if (doc) {
+          const form = el.form || doc;
+          let safeName = el.name;
+          try {
+            if (typeof CSS !== 'undefined' && CSS.escape) safeName = CSS.escape(el.name);
+          } catch (e) {}
+          const radios = form.querySelectorAll(`input[type="radio"][name="${safeName}"]`);
+          const targetClean = String(targetValue).trim().toLowerCase();
+          for (const r of radios) {
+            const rVal = (r.value || '').trim().toLowerCase();
+            let rLabel = '';
+            if (r.id) {
+              try {
+                const escapedId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(r.id) : r.id;
+                const lbl = doc.querySelector(`label[for="${escapedId}"]`);
+                if (lbl) rLabel = lbl.textContent.trim().toLowerCase();
+              } catch (e) {}
+            }
+            if (!rLabel && r.closest('label')) {
+              rLabel = r.closest('label').textContent.trim().toLowerCase();
+            }
+            if (rVal === targetClean || rLabel === targetClean || rLabel.includes(targetClean)) {
+              targetEl = r;
+              break;
+            }
+          }
+        }
+      }
+
+      const proto = typeof HTMLInputElement !== 'undefined' ? HTMLInputElement.prototype : Object.getPrototypeOf(targetEl);
       const descriptor = Object.getOwnPropertyDescriptor(proto, 'checked');
       if (descriptor && descriptor.set) {
-        descriptor.set.call(el, true);
+        descriptor.set.call(targetEl, true);
       } else {
-        el.checked = true;
+        targetEl.checked = true;
       }
-      return el.value || 'checked';
+      return targetEl.value || 'checked';
     }
 
     /**
@@ -409,7 +441,21 @@
         );
       }
 
-      if (type === 'checkbox' || type === 'radio') {
+      if (type === 'checkbox') {
+        return el.checked === true;
+      }
+
+      if (type === 'radio') {
+        if (el.name) {
+          const doc = el.ownerDocument || (typeof document !== 'undefined' ? document : null);
+          if (doc) {
+            const form = el.form || doc;
+            let safeName = el.name;
+            try { if (typeof CSS !== 'undefined' && CSS.escape) safeName = CSS.escape(el.name); } catch (e) {}
+            const checked = form.querySelector(`input[type="radio"][name="${safeName}"]:checked`);
+            if (checked) return true;
+          }
+        }
         return el.checked === true;
       }
 

@@ -232,6 +232,11 @@
       const cid = canonicalId;
       const fid = fieldId;
 
+      if (field.isSecurityCredential || field.type === 'SECURITY_CREDENTIAL' || field.securityType === 'SECURITY_CREDENTIAL' ||
+          field.type === 'password' || field.isRealSecurityChallenge || field.type === 'SECURITY_CHALLENGE' || field.isSubsequentRadio) {
+        return true;
+      }
+
       // Check if this is a mock security challenge
       if (field.isMockSecurityChallenge || field.securityChallengeType === 'MOCK_SECURITY_CHALLENGE' || cid === 'mock_security_challenge' || fid.startsWith('mock_captcha')) {
         if (field.currentValue && String(field.currentValue).trim() !== '') return true;
@@ -313,9 +318,20 @@
       const questions = [];
 
       activePage.fields.forEach(field => {
+        // STRICT SECURITY CREDENTIAL PROTECTION: Passwords are NEVER asked by the assistant
+        if (field.isSecurityCredential || field.type === 'SECURITY_CREDENTIAL' || field.securityType === 'SECURITY_CREDENTIAL' ||
+            field.type === 'password' || (field.name && /^(?:password|confirm_password|new_password|passwd)$/i.test(field.name))) {
+          return;
+        }
+
         // STRICT REAL CAPTCHA PROTECTION: Real CAPTCHA is NEVER solved or asked by the assistant
-        if (field.isRealSecurityChallenge || field.securityChallengeType === 'REAL_SECURITY_CHALLENGE' ||
+        if (field.isRealSecurityChallenge || field.type === 'SECURITY_CHALLENGE' || field.securityChallengeType === 'SECURITY_CHALLENGE' || field.securityChallengeType === 'REAL_SECURITY_CHALLENGE' ||
             (field.name && /^(?:captcha|recaptcha|hcaptcha|cf-turnstile|security[_-]?code)$/i.test(field.name) && !field.isMockSecurityChallenge)) {
+          return;
+        }
+
+        // Skip subsequent radio option elements (handled as a unified group)
+        if (field.isSubsequentRadio) {
           return;
         }
 

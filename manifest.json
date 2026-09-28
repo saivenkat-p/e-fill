@@ -41,6 +41,7 @@
         "core/document-source-manager.js",
         "core/image-preparation-engine.js",
         "core/upload-preparation-engine.js",
+        "core/upload-requirement-engine.js",
         "core/document-requirement-engine.js",
         "core/application-mapping-engine.js",
         "core/availability-engine.js",

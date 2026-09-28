@@ -49,7 +49,8 @@
       this.pages = []; // [{ id, url, title, section, fields: [], uploads: [], requirements: [], status, discoveredAt, stepIndex }]
       this.sections = []; // [{ id, name, status: 'DISCOVERED'|'INFERRED'|'UNKNOWN', requirementsKnown: boolean, pageId, fieldCount, readyCount, missingCount, reviewCount }]
       this.requirements = []; // Structured field requirements across all discovered pages
-      this.documents = []; // Structured document requirements across all discovered pages
+      this.documents = []; // Structured document requirements across all discovered pages (Information Sources)
+      this.uploads = []; // Structured application upload requirements across all discovered pages (<input type="file">)
       this.informationRequirements = []; // Category-grouped information requirements
       this.currentStep = 1;
       this.totalInferredSteps = 0;
@@ -289,10 +290,33 @@
             accept: u.accept || ''
           });
         });
+
+        // 3. Process Application Upload Requirements (<input type="file"> controls)
+        (page.uploads || []).forEach(u => {
+          allUploads.push({
+            id: u.id || u.elementId || `upload_${allUploads.length + 1}`,
+            elementId: u.elementId || u.id,
+            selector: u.selector || (u.id ? `#${u.id}` : `input[type="file"]`),
+            type: u.type || 'OTHER',
+            label: u.label || 'Upload File',
+            required: u.required !== undefined ? u.required : true,
+            format: u.format || {},
+            dimensions: u.dimensions || {},
+            aspectRatio: u.aspectRatio || null,
+            fileSize: u.fileSize || {},
+            sourceEvidence: u.sourceEvidence || '',
+            confidence: u.confidence || 'HIGH',
+            state: u.state || 'MISSING_SOURCE',
+            pageId: page.id,
+            pageUrl: page.url,
+            section: page.section || 'Documents & Uploads'
+          });
+        });
       });
 
       this.requirements = allReqs;
-      this.documents = allDocs;
+      this.documents = allDocs; // Information sources (Aadhaar, 10th marksheet, etc.)
+      this.uploads = allUploads; // Application upload requirements (<input type="file">)
 
       // Update sections list
       this._updateSectionsList();

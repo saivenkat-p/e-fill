@@ -272,6 +272,7 @@
     if (activeHighlightEl) {
       activeHighlightEl.style.boxShadow = originalHighlightStyle;
       activeHighlightEl = null;
+    }
   }
 
   // Expose for testing and direct invocation

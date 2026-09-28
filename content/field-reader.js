@@ -38,6 +38,9 @@
         }));
       }
 
+      // Security Credential (Password / Confirm Password)
+      const isSecurityCredential = (type === 'password' || /\b(password|confirm_password|passwd)\b/i.test(`${el.id || ''} ${el.name || ''}`));
+
       const isMockAttr = el.getAttribute('data-mock-challenge') === 'true' || el.getAttribute('data-efill-mock-challenge') === 'true';
       const idOrName = `${el.id || ''} ${el.name || ''}`.toLowerCase();
       const allText = `${label || ''} ${el.placeholder || ''} ${contextText || ''}`.toLowerCase();
@@ -50,13 +53,16 @@
         allText.includes('mock challenge') ||
         allText.includes('mock captcha');
 
+      const hasMathChallenge = /(\d+)\s*([\+\-\*\/])\s*(\d+)/.test(allText);
+
       const isRealCaptcha = !isMock && (
         className.includes('g-recaptcha') ||
         className.includes('h-captcha') ||
         className.includes('cf-turnstile') ||
         className.includes('captcha') ||
         /\b(captcha|recaptcha|hcaptcha|turnstile|security[_-]?code)\b/i.test(idOrName) ||
-        /\b(captcha|security code|enter the code shown|type the characters)\b/i.test(allText)
+        /\b(captcha|security code|enter the code shown|type the characters|human verification|evaluate the expression)\b/i.test(allText) ||
+        hasMathChallenge
       );
 
       let challengeQuestion = null;
@@ -90,7 +96,7 @@
         elementId,
         selector: this.getElementSelector(el),
         tagName: tag,
-        type: isMock ? 'MOCK_SECURITY_CHALLENGE' : type,
+        type: isSecurityCredential ? 'SECURITY_CREDENTIAL' : (isMock ? 'MOCK_SECURITY_CHALLENGE' : (isRealCaptcha ? 'SECURITY_CHALLENGE' : type)),
         name: el.name || '',
         id: el.id || '',
         placeholder: el.placeholder || '',
@@ -106,9 +112,11 @@
         rawRequired: !!el.required,
         ariaRequired: el.getAttribute('aria-required') === 'true',
         currentValue: el.value || '',
+        isSecurityCredential: !!isSecurityCredential,
+        securityType: isSecurityCredential ? 'SECURITY_CREDENTIAL' : null,
         isMockSecurityChallenge: isMock,
         isRealSecurityChallenge: isRealCaptcha,
-        securityChallengeType: isMock ? 'MOCK_SECURITY_CHALLENGE' : (isRealCaptcha ? 'REAL_SECURITY_CHALLENGE' : null),
+        securityChallengeType: isMock ? 'MOCK_SECURITY_CHALLENGE' : (isRealCaptcha ? 'SECURITY_CHALLENGE' : null),
         challengeQuestion,
         challengeExpectedAnswer,
         challengePrompt
@@ -154,7 +162,23 @@
         if (text) return text;
       }
 
-      // 4. Check aria-label or title
+      // 4. Check parent container's label (e.g. Bootstrap form-group, form-row)
+      const formGroup = el.closest('.form-group, .form-row, .mb-3, .form-field, tr, td');
+      if (formGroup) {
+        const groupLabel = formGroup.querySelector('label, .form-label, dt, .control-label');
+        if (groupLabel) {
+          const forAttr = groupLabel.getAttribute('for');
+          // If the label has for="..." matching this element or has no for attribute, use it
+          if (!forAttr || (el.id && forAttr === el.id)) {
+            const clone = groupLabel.cloneNode(true);
+            clone.querySelectorAll('input, select, textarea, button').forEach(i => i.remove());
+            const text = clone.textContent.trim();
+            if (text) return text;
+          }
+        }
+      }
+
+      // 5. Check aria-label or title
       if (el.getAttribute('aria-label')) {
         return el.getAttribute('aria-label').trim();
       }
@@ -162,22 +186,28 @@
         return el.getAttribute('title').trim();
       }
 
-      // 5. Look for previous sibling or ancestor label/span
+      // 6. Look for previous sibling or ancestor label/span
       let prev = el.previousElementSibling;
       while (prev) {
         if (/^(LABEL|SPAN|STRONG|B|DIV|P)$/i.test(prev.tagName)) {
           const text = prev.textContent.trim();
-          if (text && text.length < 100) return text;
+          // Skip input addons, dial codes (e.g. "+91", "+91(IN)"), or pure symbol badges
+          const isAddonOrDialCode = /^\+\d{1,4}(\s*\([a-z]{2}\))?$/i.test(text) || /^[@#$€£%^&*()_\-+=|/\\:;.,<>?]+$/.test(text);
+          if (text && text.length < 100 && !isAddonOrDialCode) {
+            return text;
+          }
         }
         prev = prev.previousElementSibling;
       }
 
-      // 6. Check parent container's previous element (e.g. Bootstrap form-group)
-      const formGroup = el.closest('.form-group, .form-row, .mb-3, .form-field, td');
+      // 7. Fallback to any single label in formGroup
       if (formGroup) {
-        const groupLabel = formGroup.querySelector('label, .form-label, dt');
-        if (groupLabel && groupLabel.textContent.trim()) {
-          return groupLabel.textContent.trim();
+        const labels = formGroup.querySelectorAll('label');
+        if (labels.length === 1 && labels[0].textContent.trim()) {
+          const clone = labels[0].cloneNode(true);
+          clone.querySelectorAll('input, select, textarea, button').forEach(i => i.remove());
+          const text = clone.textContent.trim();
+          if (text) return text;
         }
       }
 

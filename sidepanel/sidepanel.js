@@ -71,21 +71,27 @@
   const groupReady    = document.getElementById('group-ready');
   const groupReview   = document.getElementById('group-review');
   const groupConflict = document.getElementById('group-conflict');
+  const groupChoices  = document.getElementById('group-choices');
   const groupMissing  = document.getElementById('group-missing');
   const groupDocs     = document.getElementById('group-docs');
   const groupUploads  = document.getElementById('group-uploads');
+  const groupSecurity = document.getElementById('group-security');
   const stackReady    = document.getElementById('stack-ready');
   const stackReview   = document.getElementById('stack-review');
   const stackConflict = document.getElementById('stack-conflict');
+  const stackChoices  = document.getElementById('stack-choices');
   const stackMissing  = document.getElementById('stack-missing');
   const stackDocs     = document.getElementById('stack-docs');
   const stackUploads  = document.getElementById('stack-uploads');
+  const stackSecurity = document.getElementById('stack-security');
   const gcReady    = document.getElementById('group-count-ready');
   const gcReview   = document.getElementById('group-count-review');
   const gcConflict = document.getElementById('group-count-conflict');
+  const gcChoices  = document.getElementById('group-count-choices');
   const gcMissing  = document.getElementById('group-count-missing');
   const gcDocs     = document.getElementById('group-count-docs');
   const gcUploads  = document.getElementById('group-count-uploads');
+  const gcSecurity = document.getElementById('group-count-security');
 
   // ── DOM: My Information tab ────────────────────────────────────────────────
   const btnProfileDropdown = document.getElementById('btn-profile-dropdown');
@@ -2408,13 +2414,20 @@
     pageTitleEl.textContent = tab.title || 'Untitled Page';
     pageUrlEl.textContent = tab.url || '';
 
-    if (tab.url && (
-      tab.url.startsWith('chrome://') ||
-      tab.url.startsWith('edge://') ||
-      tab.url.startsWith('about:') ||
-      tab.url.startsWith('chrome-extension://')
-    )) {
-      showIneligibleState('E-Fill does not operate on browser system pages');
+    function isBrowserInternalUrl(url) {
+      if (!url || typeof url !== 'string') return false;
+      return (
+        url.startsWith('chrome://') ||
+        url.startsWith('chrome-extension://') ||
+        url.startsWith('edge://') ||
+        url.startsWith('about:') ||
+        url.startsWith('moz-extension://') ||
+        url.startsWith('view-source:')
+      );
+    }
+
+    if (tab.url && isBrowserInternalUrl(tab.url)) {
+      showBlockedState('E-Fill does not operate on browser system pages');
       return;
     }
 
@@ -2441,9 +2454,13 @@
                   'core/document-source-manager.js',
                   'core/image-preparation-engine.js',
                   'core/upload-preparation-engine.js',
+                  'core/upload-requirement-engine.js',
                   'core/document-requirement-engine.js',
+                  'core/application-mapping-engine.js',
                   'core/availability-engine.js',
                   'core/source-selector.js',
+                  'core/application-plan.js',
+                  'core/conversational-assistant.js',
                   'content/field-reader.js',
                   'content/form-detector.js',
                   'content/indicator.js',
@@ -2456,13 +2473,19 @@
                 if (retryRes && retryRes.data) {
                   renderScanResults(retryRes.data);
                 } else {
-                  showIneligibleState('Could not communicate with this page');
+                  showCommunicationErrorState('Could not communicate with content script on this page');
                 }
               });
+            } else {
+              showCommunicationErrorState('Could not communicate with page');
             }
           } catch (injectErr) {
             console.warn('[E-Fill] Injection not permitted:', injectErr);
-            showIneligibleState('E-Fill cannot operate on this page');
+            if (tab.url && isBrowserInternalUrl(tab.url)) {
+              showBlockedState('E-Fill cannot operate on this page');
+            } else {
+              showCommunicationErrorState('Content script injection failed');
+            }
           }
           return;
         }
@@ -2470,7 +2493,7 @@
       });
     } catch (err) {
       console.warn('[E-Fill] Scan error:', err);
-      showIneligibleState('Scan error occurred');
+      showCommunicationErrorState('Scan error occurred');
     }
   }
 
@@ -2564,33 +2587,48 @@
       : [];
 
     // Clear group stacks
-    stackReady.innerHTML = '';
-    stackReview.innerHTML = '';
-    stackConflict.innerHTML = '';
-    stackMissing.innerHTML = '';
+    if (stackReady)    stackReady.innerHTML = '';
+    if (stackReview)   stackReview.innerHTML = '';
+    if (stackConflict) stackConflict.innerHTML = '';
+    if (stackChoices)  stackChoices.innerHTML = '';
+    if (stackMissing)  stackMissing.innerHTML = '';
+    if (stackSecurity) stackSecurity.innerHTML = '';
 
-    let nReady = 0, nReview = 0, nConflict = 0, nMissing = 0;
+    let nReady = 0, nReview = 0, nConflict = 0, nChoices = 0, nMissing = 0, nSecurity = 0;
 
     currentProposals.forEach((proposal, idx) => {
       const card = createProposalCard(proposal, idx);
-      switch (proposal.status) {
-        case 'READY':
-          stackReady.appendChild(card);
-          nReady++;
-          break;
-        case 'REVIEW_REQUIRED':
-        case 'AMBIGUOUS':
-          stackReview.appendChild(card);
-          nReview++;
-          break;
-        case 'CONFLICT':
-          stackConflict.appendChild(card);
-          nConflict++;
-          break;
-        default: // UNAVAILABLE, UNIDENTIFIED
-          stackMissing.appendChild(card);
-          nMissing++;
-          break;
+      const isSecurity = proposal.isSecurityCredential || proposal.isRealSecurityChallenge ||
+                         proposal.type === 'SECURITY_CREDENTIAL' || proposal.type === 'SECURITY_CHALLENGE' ||
+                         proposal.status === 'USER_ACTION_REQUIRED';
+      const isChoice = proposal.status === 'APPLICATION_CHOICE' || (proposal.isApplicationChoice && !proposal.proposedValue);
+
+      if (isSecurity) {
+        if (stackSecurity) stackSecurity.appendChild(card);
+        nSecurity++;
+      } else if (isChoice) {
+        if (stackChoices) stackChoices.appendChild(card);
+        nChoices++;
+      } else {
+        switch (proposal.status) {
+          case 'READY':
+            if (stackReady) stackReady.appendChild(card);
+            nReady++;
+            break;
+          case 'REVIEW_REQUIRED':
+          case 'AMBIGUOUS':
+            if (stackReview) stackReview.appendChild(card);
+            nReview++;
+            break;
+          case 'CONFLICT':
+            if (stackConflict) stackConflict.appendChild(card);
+            nConflict++;
+            break;
+          default: // UNAVAILABLE, UNIDENTIFIED, MISSING
+            if (stackMissing) stackMissing.appendChild(card);
+            nMissing++;
+            break;
+        }
       }
     });
 
@@ -2598,7 +2636,9 @@
     showGroup(groupReady, nReady, gcReady);
     showGroup(groupReview, nReview, gcReview);
     showGroup(groupConflict, nConflict, gcConflict);
+    showGroup(groupChoices, nChoices, gcChoices);
     showGroup(groupMissing, nMissing, gcMissing);
+    showGroup(groupSecurity, nSecurity, gcSecurity);
 
     // Evaluate and render Document and Upload Requirements
     const reqEngine = getDocumentRequirementEngine();
@@ -3143,6 +3183,32 @@
   }
 
   /**
+   * showCommunicationErrorState — normal webpage where communication failed.
+   */
+  function showCommunicationErrorState(reason) {
+    eligibilityDot.className = 'eligibility-dot';
+    eligibilityLabel.className = 'eligibility-label';
+    eligibilityLabel.textContent = 'Page communication notice';
+    summaryBar.style.display = 'none';
+    emptyStateEl.style.display = 'none';
+    proposalsListEl.style.display = 'none';
+    if (stackReady)    stackReady.innerHTML    = '';
+    if (stackReview)   stackReview.innerHTML   = '';
+    if (stackConflict) stackConflict.innerHTML = '';
+    if (stackChoices)  stackChoices.innerHTML  = '';
+    if (stackMissing)  stackMissing.innerHTML  = '';
+    if (stackSecurity) stackSecurity.innerHTML = '';
+    ineligibleStateEl.style.display = 'block';
+    const titleEl = ineligibleStateEl.querySelector('h3');
+    const descEl = ineligibleStateEl.querySelector('p');
+    if (titleEl) titleEl.textContent = 'Page Communication Notice';
+    if (descEl) descEl.textContent = 'Could not communicate with the page content script. Please reload the webpage and click Rescan.';
+    if (ineligibleReasonEl) ineligibleReasonEl.textContent = reason || '';
+    currentProposals = [];
+    updateActionBar();
+  }
+
+  /**
    * showBlockedState — browser-internal pages only (chrome://, edge://, etc.)
    * E-Fill genuinely cannot operate here.
    */
@@ -3154,8 +3220,14 @@
     if (stackReady)    stackReady.innerHTML    = '';
     if (stackReview)   stackReview.innerHTML   = '';
     if (stackConflict) stackConflict.innerHTML = '';
+    if (stackChoices)  stackChoices.innerHTML  = '';
     if (stackMissing)  stackMissing.innerHTML  = '';
+    if (stackSecurity) stackSecurity.innerHTML = '';
     ineligibleStateEl.style.display = 'block';
+    const titleEl = ineligibleStateEl.querySelector('h3');
+    const descEl = ineligibleStateEl.querySelector('p');
+    if (titleEl) titleEl.textContent = 'E-Fill cannot operate here';
+    if (descEl) descEl.textContent = 'This is a browser system page. E-Fill can analyze any regular webpage with forms.';
     if (ineligibleReasonEl) ineligibleReasonEl.textContent = reason || '';
     currentProposals = [];
     updateActionBar();
@@ -3163,7 +3235,7 @@
 
   /**
    * showNoFormState — page is scannable but no meaningful form controls found.
-   * Shown for: login-only pages, content pages, blank pages, etc.
+   * Shown for: login-only pages, content pages, blank pages, or unsupported pages.
    */
   function showNoFormState(profileName) {
     // Show profile context in header if known, otherwise generic
@@ -3177,6 +3249,15 @@
     ineligibleStateEl.style.display = 'none';
     proposalsListEl.style.display = 'none';
     emptyStateEl.style.display = 'block';
+    const titleEl = emptyStateEl.querySelector('h3');
+    const descEl = emptyStateEl.querySelector('p');
+    if (profileName) {
+      if (titleEl) titleEl.textContent = 'No Form Detected Yet';
+      if (descEl) descEl.textContent = 'Open an application form page or click "Rescan" to detect and review fields.';
+    } else {
+      if (titleEl) titleEl.textContent = 'No Supported Application Detected';
+      if (descEl) descEl.textContent = 'E-Fill is active. This webpage is not a recognized supported application portal or has no fillable form controls.';
+    }
     currentProposals = [];
     updateActionBar();
   }
@@ -3204,7 +3285,7 @@
   function setGenericScannedUI() {
     eligibilityDot.className = 'eligibility-dot';
     eligibilityLabel.className = 'eligibility-label';
-    eligibilityLabel.textContent = 'No fillable form detected';
+    eligibilityLabel.textContent = 'No supported application detected';
     pageTitleEl.textContent = 'Page scanned';
   }
 
@@ -3288,6 +3369,105 @@
 
   function createProposalCard(proposal, index) {
     const card = document.createElement('div');
+
+    // ── 1. SECURITY CREDENTIAL CARD (PASSWORD / CONFIRM PASSWORD) ───────────
+    if (proposal.isSecurityCredential || proposal.type === 'SECURITY_CREDENTIAL' || proposal.securityType === 'SECURITY_CREDENTIAL') {
+      card.className = 'proposal-card security';
+      card.setAttribute('data-card-field-id', proposal.fieldId || '');
+      card.innerHTML = `
+        <div class="card-top">
+          <label class="field-checkbox-label">
+            <span>🔐 ${escapeHtml(proposal.label || 'Password')}</span>
+          </label>
+          <span class="status-badge badge-security">USER ACTION</span>
+        </div>
+        <div class="field-value-box">
+          <div class="security-instruction">
+            <span>🛡️</span>
+            <span>Enter directly on the application</span>
+          </div>
+        </div>
+        <div class="card-bottom">
+          <span class="source-tag">🔐 Kept private</span>
+          <span class="reason-tooltip" title="Security credentials are never stored or autofilled">Security Credential</span>
+        </div>
+      `;
+      return card;
+    }
+
+    // ── 2. REAL WEBSITE SECURITY / CAPTCHA CARD ────────────────────────────
+    if (proposal.isRealSecurityChallenge || proposal.type === 'SECURITY_CHALLENGE' || proposal.securityChallengeType === 'SECURITY_CHALLENGE' || proposal.securityChallengeType === 'REAL_SECURITY_CHALLENGE') {
+      card.className = 'proposal-card security';
+      card.setAttribute('data-card-field-id', proposal.fieldId || '');
+      card.innerHTML = `
+        <div class="card-top">
+          <label class="field-checkbox-label">
+            <span>🔐 Website Security: CAPTCHA detected</span>
+          </label>
+          <span class="status-badge badge-security">USER ACTION</span>
+        </div>
+        <div class="field-value-box">
+          <div class="security-instruction">
+            <span>🧩</span>
+            <span>Complete the CAPTCHA directly on the application page.</span>
+          </div>
+        </div>
+        <div class="card-bottom">
+          <span class="source-tag">🛡️ Human Verification</span>
+          <span class="reason-tooltip" title="Security challenge requires direct user completion">Website Security</span>
+        </div>
+      `;
+      return card;
+    }
+
+    // ── 3. APPLICATION CHOICE CARD (RADIO GROUPS / DROPDOWN CHOICES) ───────
+    if (proposal.status === 'APPLICATION_CHOICE' || (proposal.isApplicationChoice && !proposal.proposedValue)) {
+      card.className = 'proposal-card choice';
+      card.setAttribute('data-card-field-id', proposal.fieldId || '');
+      const opts = proposal.options || proposal.alternatives || [];
+      const optsHtml = opts.map(opt => {
+        const val = typeof opt === 'object' ? (opt.value || opt.text) : opt;
+        const txt = typeof opt === 'object' ? (opt.text || opt.value) : opt;
+        const isSel = proposal.proposedValue === val;
+        return `
+          <button type="button" class="btn-alt-choice ${isSel ? 'selected' : ''}"
+            style="font-size: 11.5px; padding: 4px 10px; border: 1px solid ${isSel ? '#0284c7' : '#cbd5e1'}; background: ${isSel ? '#e0f2fe' : '#f8fafc'}; color: ${isSel ? '#0369a1' : '#1e293b'}; border-radius: 14px; cursor: pointer; font-weight: 500;"
+            data-opt-val="${escapeHtml(val)}">
+            ${isSel ? '✓ ' : '○ '}${escapeHtml(txt)}
+          </button>
+        `;
+      }).join('');
+
+      card.innerHTML = `
+        <div class="card-top">
+          <label class="field-checkbox-label">
+            <span>🔘 ${escapeHtml(proposal.label || 'Application Choice')}</span>
+          </label>
+          <span class="status-badge badge-choice">CHOICE</span>
+        </div>
+        <div class="field-value-box">
+          <span style="font-size: 11px; color: #64748b; margin-bottom: 2px;">Select an option for this application:</span>
+          <div class="choice-options-row" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+            ${optsHtml || '<span style="font-size: 11px; color: #94a3b8;">No predefined choices</span>'}
+          </div>
+        </div>
+        <div class="card-bottom">
+          <span class="source-tag">🔘 Application Choices</span>
+          <span class="reason-tooltip" title="${escapeHtml(proposal.reason || 'Select an option')}">${escapeHtml(proposal.reason || 'Select an option')}</span>
+        </div>
+      `;
+
+      card.querySelectorAll('.btn-alt-choice').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const chosenVal = btn.getAttribute('data-opt-val');
+          proposal.proposedValue = chosenVal;
+          proposal.approved = true;
+          await autofillSingleProposal(proposal, card);
+        });
+      });
+      return card;
+    }
+
     const st = proposal.status;
 
     // Card border class

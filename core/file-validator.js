@@ -198,6 +198,128 @@
       }
       return { valid: errors.length === 0, errors };
     }
+
+    /**
+     * Validates a prepared derived file against a structured Upload Requirement.
+     *
+     * STRICT RULES:
+     *   - Exact dimensions require exact match (zero invented tolerance).
+     *   - Dimension range (if specified by application) enforces exact range.
+     *   - File size validates both minBytes and maxBytes if specified.
+     *   - Binary signature / magic bytes verified if buffer available.
+     *
+     * @param {Object} file - { width, height, sizeBytes, format, mimeType, bytes, blob }
+     * @param {Object} requirement - structured requirement from UploadRequirementEngine
+     * @returns {{ valid: boolean, checks: Array<{ name: string, passed: boolean, detail: string }>, errors: string[] }}
+     */
+    validatePreparedFile(file = {}, requirement = {}) {
+      const checks = [];
+      const errors = [];
+
+      // 1. Format / MIME validation
+      const allowedFormats = requirement.format?.allowedFormats || [];
+      const allowedExts = requirement.format?.allowedExtensions || [];
+      let formatPassed = true;
+      let formatDetail = file.format || file.mimeType || 'Standard';
+
+      if (file.bytes) {
+        const detected = this.detectMimeType(file.bytes);
+        if (allowedFormats.length > 0) {
+          const match = allowedFormats.some(f => {
+            if (f === 'image/*' && detected.startsWith('image/')) return true;
+            if ((f.includes('jpg') || f.includes('jpeg')) && detected === 'image/jpeg') return true;
+            if (f.includes('png') && detected === 'image/png') return true;
+            if (f.includes('pdf') && detected === 'application/pdf') return true;
+            return f === detected;
+          });
+          if (!match) {
+            formatPassed = false;
+            errors.push(`Format mismatch: prepared file is "${detected}", required one of [${allowedExts.join(', ').toUpperCase()}]`);
+          }
+        }
+      } else if (allowedFormats.length > 0 && file.mimeType) {
+        const match = allowedFormats.some(f => {
+          if (f === 'image/*' && file.mimeType.startsWith('image/')) return true;
+          if ((f.includes('jpg') || f.includes('jpeg')) && file.mimeType === 'image/jpeg') return true;
+          if (f.includes('png') && file.mimeType === 'image/png') return true;
+          if (f.includes('pdf') && file.mimeType === 'application/pdf') return true;
+          return f === file.mimeType;
+        });
+        if (!match) {
+          formatPassed = false;
+          errors.push(`Format mismatch: prepared file is "${file.mimeType}", required [${allowedExts.join(', ').toUpperCase()}]`);
+        }
+      }
+
+      checks.push({
+        name: 'Format',
+        passed: formatPassed,
+        detail: formatPassed
+          ? (requirement.format?.formatText || formatDetail.toUpperCase())
+          : `Failed (Required: ${allowedExts.join(', ').toUpperCase()})`
+      });
+
+      // 2. Dimension validation (STRICT: exact match when specified, zero invented tolerance)
+      const dims = requirement.dimensions || {};
+      let dimsPassed = true;
+      let dimsDetail = file.width && file.height ? `${file.width} × ${file.height} px` : 'Preserved';
+
+      if (dims.width !== null && dims.width !== undefined && dims.height !== null && dims.height !== undefined && dims.unit === 'px') {
+        if (file.width !== dims.width || file.height !== dims.height) {
+          dimsPassed = false;
+          errors.push(`Dimensions mismatch: prepared image is ${file.width} × ${file.height} px (Required: exactly ${dims.width} × ${dims.height} px)`);
+        }
+      } else if (dims.minWidth !== null && dims.minWidth !== undefined && file.width < dims.minWidth) {
+        dimsPassed = false;
+        errors.push(`Width (${file.width}px) is below minimum (${dims.minWidth}px)`);
+      } else if (dims.maxWidth !== null && dims.maxWidth !== undefined && file.width > dims.maxWidth) {
+        dimsPassed = false;
+        errors.push(`Width (${file.width}px) exceeds maximum (${dims.maxWidth}px)`);
+      } else if (dims.minHeight !== null && dims.minHeight !== undefined && file.height < dims.minHeight) {
+        dimsPassed = false;
+        errors.push(`Height (${file.height}px) is below minimum (${dims.minHeight}px)`);
+      } else if (dims.maxHeight !== null && dims.maxHeight !== undefined && file.height > dims.maxHeight) {
+        dimsPassed = false;
+        errors.push(`Height (${file.height}px) exceeds maximum (${dims.maxHeight}px)`);
+      }
+
+      checks.push({
+        name: 'Dimensions',
+        passed: dimsPassed,
+        detail: dimsPassed
+          ? (dims.dimensionText || dimsDetail)
+          : `Failed (${dimsDetail}, Required: ${dims.dimensionText || `${dims.width}×${dims.height} px`})`
+      });
+
+      // 3. File size validation (validates both minBytes and maxBytes)
+      const sizeBytes = file.sizeBytes ?? (file.blob ? file.blob.size : (file.bytes ? file.bytes.length : 0));
+      const sizeKB = Math.round(sizeBytes / 1024);
+      const fs = requirement.fileSize || {};
+      let sizePassed = true;
+
+      if (fs.minBytes !== null && fs.minBytes !== undefined && sizeBytes < fs.minBytes) {
+        sizePassed = false;
+        errors.push(`File size ${sizeKB} KB is below required minimum of ${fs.minKB} KB`);
+      }
+      if (fs.maxBytes !== null && fs.maxBytes !== undefined && sizeBytes > fs.maxBytes) {
+        sizePassed = false;
+        errors.push(`File size ${sizeKB} KB exceeds required maximum of ${fs.maxKB} KB`);
+      }
+
+      checks.push({
+        name: 'File Size',
+        passed: sizePassed,
+        detail: sizePassed
+          ? `${sizeKB} KB ${fs.sizeText ? `(Allowed: ${fs.sizeText})` : ''}`.trim()
+          : `Failed: ${sizeKB} KB (Required: ${fs.sizeText || 'within limit'})`
+      });
+
+      return {
+        valid: errors.length === 0,
+        checks,
+        errors
+      };
+    }
   }
 
   const fileValidator = new FileValidator();
